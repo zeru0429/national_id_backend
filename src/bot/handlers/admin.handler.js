@@ -418,7 +418,7 @@ async function handleAdminUserLogs(bot, chatId, userId) {
 
   await bot.sendMessage(
     chatId,
-    `📊 *Usage Logs* (latest ${logs.length})\n\n👤 *User:* ${safe(user.fullName || "User")}\n\n${lines.join("\n")}`,
+    `📊 *Usage Logs* \\- latest ${logs.length}\n\n👤 *User:* ${safe(user.fullName || "User")}\n\n${lines.join("\n")}`,
     { parse_mode: "MarkdownV2", ...keyboards.getBackKeyboard(`admin_user_${userId}`) }
   );
 }

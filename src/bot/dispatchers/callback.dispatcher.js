@@ -167,7 +167,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
           });
           await _bot.sendMessage(
             ctx.chatId,
-            `📊 *Usage History* (latest ${items.length})\n\n${lines.join("\n")}`,
+            `📊 *Usage History* \\- latest ${items.length}\n\n${lines.join("\n")}`,
             { parse_mode: "MarkdownV2", ...keyboards.getBackKeyboard("balance_info") }
           );
         })(bot, { chatId });
