@@ -191,8 +191,9 @@ async function handleIDMessage(bot, msg) {
     );
 
     let extractedData;
+    let result;
     try {
-      const result = await processPDF(tempPath, userId);
+      result = await processPDF(tempPath, userId);
       extractedData = result.data;
       if (!extractedData) throw new Error("No data extracted from PDF");
       if (!extractedData.fcn && !extractedData.fin)
@@ -234,20 +235,26 @@ async function handleIDMessage(bot, msg) {
     let frontPath;
     let backPath;
     try {
+
       frontPath = await generateIDCard({
         side: "front",
         data: extractedData,
+        photoPath: result.images.profile,
+        barcodePath: result.images.barcode,
         customFileName: `front-${timestamp}-${sanitizedName}.jpg`,
         outputFormat: "jpg",
         jpegQuality: 0.9,
       });
+
       backPath = await generateIDCard({
         side: "back",
         data: extractedData,
+        qrCodePath: result.images.qr,
         customFileName: `back-${timestamp}-${sanitizedName}.jpg`,
         outputFormat: "jpg",
         jpegQuality: 0.9,
       });
+
       if (!fs.existsSync(frontPath) || !fs.existsSync(backPath))
         throw new Error("Failed to generate ID card images");
     } catch (genError) {

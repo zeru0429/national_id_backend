@@ -267,7 +267,6 @@ async function generateIDCard({
       console.warn("Failed to draw image", localPath, err.message || err);
     }
   }
-
   if (side === "front") {
     if (photoPath) await drawIfExists(photoPath, PLACEMENTS.front.photo);
     if (photoPath) await drawIfExists(photoPath, PLACEMENTS.front.samll_photo);

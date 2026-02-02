@@ -12,10 +12,10 @@ if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
 /**
  * Process PDF and return extracted images and data
  * @param {string} pdfPath - Path to PDF file
- * @param {number} port - Server port for image URLs
+ * @param {number} userId - User ID for image URLs
  * @returns {Promise<{ images: object, data: object }>}
  */
-async function processPDF(pdfPath, port) {
+async function processPDF(pdfPath, userId) {
   const isProductBgRemoval = (process.env.ENV = "production" ? true : false);
   const cropRegions = {
     profile: {
@@ -89,7 +89,7 @@ async function processPDF(pdfPath, port) {
     const filepath = path.join(outputDir, filename);
     fs.writeFileSync(filepath, buffer);
 
-    images[key] = `http://localhost:${port}/output/${filename}`;
+    images[key] = `http://localhost:${process.env.PORT}/output/${filename}`;
 
     if (key === "fin") finText = await readImageText(buffer, "eng+amh");
     if (key === "issueDate")
