@@ -19,8 +19,8 @@ async function handleAdminUsers(bot, chatId, page = 1, limit = 10) {
     const safePhone = escapeMarkdownV2(user.phoneNumber || "No phone");
     message += `*${globalIdx}\\.${safeName}*\n`;
     message += `📞 ${safePhone}\n`;
-    message += `💰 Balance: ${escapeMarkdownV2(user.subscription?.balance || 0)} ETB\n`;
-    message += `📊 IDs: ${escapeMarkdownV2(user._count.generations)} \\| Role: ${escapeMarkdownV2(user.role)}\n`;
+    message += `💰 Balance: ${escapeMarkdownV2(user.subscription?.balance || 0)} Credit\n`;
+    message += `📊 IDs: ${escapeMarkdownV2(user._count?.generations || 0)} \\| Role: ${escapeMarkdownV2(user.role)}\n`;
     message += `📅 Joined: ${escapeMarkdownV2(formatDate(user.createdAt))}\n\n`;
 
     inlineKeyboard.push([
@@ -72,7 +72,16 @@ async function handleAdminSearchUser(bot, chatId, query = null) {
     return { step: "ADMIN_SEARCH_QUERY" };
   }
 
-  const results = await adminService.searchUsers(query);
+  let results = [];
+  try {
+    results = await adminService.searchUsers(query.trim());
+    if (!Array.isArray(results)) results = [];
+  } catch (err) {
+    console.error("Admin search failed:", err);
+    await bot.sendMessage(chatId, "❌ Search failed. Please try again.");
+    return;
+  }
+
   if (!results.length) {
     await bot.sendMessage(
       chatId,
@@ -91,7 +100,7 @@ async function handleAdminSearchUser(bot, chatId, query = null) {
     return;
   }
 
-  let message = `🔍 *Search Results*\n\nFound *${results.length}* user(s) for "*${escapeMarkdownV2(query)}*":\n\n`;
+  let message = `🔍 *Search Results*\n\nFound *${results.length}* users for "*${escapeMarkdownV2(query)}*":\n\n`;
   const inlineKeyboard = [];
 
   results.forEach((user, idx) => {
@@ -99,8 +108,8 @@ async function handleAdminSearchUser(bot, chatId, query = null) {
     const safePhone = escapeMarkdownV2(user.phoneNumber || "No phone");
     message += `*${idx + 1}\\.${safeName}*\n`;
     message += `📞 ${safePhone}\n`;
-    message += `💰 Balance: ${escapeMarkdownV2(user.subscription?.balance || 0)} ETB\n`;
-    message += `📊 IDs: ${escapeMarkdownV2(user._count.generations)} \\| Role: ${escapeMarkdownV2(user.role)}\n\n`;
+    message += `💰 Balance: ${escapeMarkdownV2(user.subscription?.balance || 0)} Credit\n`;
+    message += `📊 IDs: ${escapeMarkdownV2(user._count?.generations || 0)} \\| Role: ${escapeMarkdownV2(user.role)}\n\n`;
 
     inlineKeyboard.push([
       { text: `👤 ${idx + 1}`, callback_data: `admin_user_${user.id}` },
@@ -147,9 +156,9 @@ async function handleAdminUserDetail(bot, chatId, userId) {
 *Language:* ${escapeMarkdownV2(user.language)}
 
 💰 *Subscription*
-Balance: ${escapeMarkdownV2(user.subscription?.balance || 0)} ETB
-Total Used: ${escapeMarkdownV2(user.subscription?.totalUsed || 0)} ETB
-Total Spent: ${escapeMarkdownV2(totalSpent)} ETB
+Balance: ${escapeMarkdownV2(user.subscription?.balance || 0)} Credit
+Total Used: ${escapeMarkdownV2(user.subscription?.totalUsed || 0)} Credit
+Total Spent: ${escapeMarkdownV2(totalSpent)} Credit
 Status: ${user.subscription?.isActive ? "✅ Active" : "❌ Inactive"}
 
 📊 *Usage Stats*
@@ -198,7 +207,7 @@ async function handleAdminAddBalance(bot, chatId, userId, amount = null) {
   if (amount === null) {
     await bot.sendMessage(
       chatId,
-      "💰 *Add Balance to User*\n\nEnter amount to add (ETB):",
+      "💰 *Add Balance to User*\n\nEnter amount to add (Credit):",
       { parse_mode: "MarkdownV2", ...keyboards.getCancelKeyboard() }
     );
     return { step: "ADMIN_ADD_BALANCE", data: { userId } };
@@ -217,7 +226,7 @@ async function handleAdminAddBalance(bot, chatId, userId, amount = null) {
 
     await bot.sendMessage(
       chatId,
-      `✅ *Balance Added Successfully!*\n\n👤 *User:* ${safeName}\n💰 *Amount:* ${amountNum} ETB\n💳 *New Balance:* ${subscription.balance} ETB`,
+      `✅ *Balance Added Successfully!*\n\n👤 *User:* ${safeName}\n💰 *Amount:* ${amountNum} Credit\n💳 *New Balance:* ${subscription.balance} Credit`,
       {
         parse_mode: "MarkdownV2",
         reply_markup: {
@@ -315,7 +324,7 @@ async function handleAdminUserGenerations(bot, chatId, userId, page = 1, limit =
     const date = formatDate(gen.createdAt);
     message += `*${globalIdx}\\.${escapeMarkdownV2(name)}*\n`;
     message += `📅 ${escapeMarkdownV2(date)} \\| FCN: ${escapeMarkdownV2(gen.fcn || "N/A")}\n`;
-    message += `💰 Cost: ${escapeMarkdownV2(gen.cost)} ETB\n\n`;
+    message += `💰 Cost: ${escapeMarkdownV2(gen.cost)} Credit\n\n`;
   });
 
   const paginationRow = [];
@@ -370,18 +379,48 @@ Active Today: ${stats.activeTodayUsers}
 💳 *Usage*
 Total Generations: ${stats.totalGenerations}
 Today's Generations: ${stats.todayGenerations}
-Total Revenue: ${escapeMarkdownV2(stats.totalRevenue)} ETB
-Today's Revenue: ${escapeMarkdownV2(stats.todayRevenue)} ETB
+Total Revenue: ${escapeMarkdownV2(stats.totalRevenue)} Credit
+Today's Revenue: ${escapeMarkdownV2(stats.todayRevenue)} Credit
 
 📈 *Performance*
 Avg\\. per User: ${avgPerUser} IDs
-Revenue per Gen: ${escapeMarkdownV2(revenuePerGen)} ETB
+Revenue per Gen: ${escapeMarkdownV2(revenuePerGen)} Credit
 `;
 
   await bot.sendMessage(chatId, statsText.trim(), {
     parse_mode: "MarkdownV2",
     ...keyboards.getBackKeyboard("admin_panel"),
   });
+}
+
+async function handleAdminUserLogs(bot, chatId, userId) {
+  const data = await adminService.getUserLogs(userId, 20);
+  if (!data) {
+    await bot.sendMessage(chatId, "❌ User not found\\.", { parse_mode: "MarkdownV2" });
+    return;
+  }
+
+  const { user, logs } = data;
+  const safe = (t) => escapeMarkdownV2(t || "N/A");
+  if (!logs.length) {
+    await bot.sendMessage(
+      chatId,
+      `📊 *Usage Logs*\n\nNo logs found for *${safe(user.fullName || "User")}*\\.`,
+      { parse_mode: "MarkdownV2", ...keyboards.getBackKeyboard(`admin_user_${userId}`) }
+    );
+    return;
+  }
+
+  const lines = logs.map((l, idx) => {
+    const d = formatDate(l.createdAt);
+    return `*${idx + 1}\\.* ${safe(l.action)} \\- ${safe(l.amount)} Credit \\(${safe(d)}\\)`;
+  });
+
+  await bot.sendMessage(
+    chatId,
+    `📊 *Usage Logs* (latest ${logs.length})\n\n👤 *User:* ${safe(user.fullName || "User")}\n\n${lines.join("\n")}`,
+    { parse_mode: "MarkdownV2", ...keyboards.getBackKeyboard(`admin_user_${userId}`) }
+  );
 }
 
 module.exports = {
@@ -393,4 +432,5 @@ module.exports = {
   handleAdminBlockUser,
   handleAdminUserGenerations,
   handleAdminStats,
+  handleAdminUserLogs,
 };
