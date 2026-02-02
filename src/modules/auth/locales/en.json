@@ -1,0 +1,27 @@
+{
+  "auth": {
+    "login_success": "Login successful",
+    "register_success": "Registration successful",
+    "token_refreshed": "Access token refreshed",
+    "logout_success": "Logged out successfully",
+    "forgot_password_sent": "Password reset OTP sent",
+    "password_reset_success": "Password reset successfully",
+    "otp_verified": "OTP verified successfully",
+    "password_changed": "Password changed successfully",
+    "profile_retrieved": "Profile retrieved successfully",
+    "invalid_credentials": "Invalid email or password",
+    "user_not_found": "User not found",
+    "invalid_old_password": "Old password is incorrect",
+    "otp_invalid": "OTP is invalid or expired",
+    "no_token_provided": "No token provided",
+    "token_expired": "Token expired",
+    "invalid_token": "Invalid token",
+    "authentication_failed": "Authentication failed",
+    "authentication_required": "Authentication required",
+    "platform_access_only": "Platform users only",
+    "org_access_only": "Organization users only",
+    "no_valid_permissions_found": "No valid permissions found",
+    "access_denied_permissions": "Access denied. Required: {required}. Your permissions: {userPermissions}",
+    "authorization_failed": "Authorization failed"
+  }
+}

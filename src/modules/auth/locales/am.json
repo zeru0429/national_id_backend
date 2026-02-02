@@ -1,0 +1,27 @@
+{
+  "auth": {
+    "login_success": "መግቢያ በተሳካ ሁኔታ ተፈጥሯል",
+    "register_success": "ምዝገባ በተሳካ ሁኔታ ተፈጥሯል",
+    "token_refreshed": "የመዳረሻ ታከን ተደጋግሟል",
+    "logout_success": "ተወውቷል",
+    "forgot_password_sent": "የይለፍ ቃል ማስታወቂያ ተላከ",
+    "password_reset_success": "የይለፍ ቃል ተመልሷል",
+    "otp_verified": "OTP ተረጋግጧል",
+    "password_changed": "የይለፍ ቃል ተቀይሯል",
+    "profile_retrieved": "መገለጫ ተገኝቷል",
+    "invalid_credentials": "ኢሜይል ወይም የይለፍ ቃል ትክክል አይደለም",
+    "user_not_found": "ተጠቃሚ አልተገኘም",
+    "invalid_old_password": "የአሮጌ የይለፍ ቃል ትክክል አይደለም",
+    "otp_invalid": "OTP የተሳሳተ ወይም የጊዜ ማስተካከያ ውስጥ ነው",
+    "no_token_provided": "ታከን አልተሰጠም",
+    "token_expired": "ታከን ጊዜው አልፎታል",
+    "invalid_token": "ታከን የተሳሳተ ነው",
+    "authentication_failed": "የማረጋገጫ ሂደት አልተሳካም",
+    "authentication_required": "የማረጋገጫ ሂደት ያስፈልጋል",
+    "platform_access_only": "ለፕላትፎርም ተጠቃሚዎች ብቻ",
+    "org_access_only": "ለድርጅት ተጠቃሚዎች ብቻ",
+    "no_valid_permissions_found": "ትክክለኛ ፈቃድ አልተገኘም",
+    "access_denied_permissions": "መዳረሻ ተከልክሏል። የሚያስፈልጉት: {required}. ያሎት ፈቃዶች: {userPermissions}",
+    "authorization_failed": "የፈቃድ ማረጋገጫ አልተሳካም"
+  }
+}

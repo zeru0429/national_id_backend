@@ -1,0 +1,26 @@
+{
+  "welcome_message": "Welcome to the Ticket System",
+  "common": {
+    "errors": {
+      "route_not_found": "Route not found",
+      "invalid_json": "Invalid JSON payload",
+      "validation_error": "Validation error",
+      "duplicate_key": "Duplicate key",
+      "resource_not_found": "Resource not found"
+    },
+    "validation": {
+      "email_required": "ኢሜይል ያስፈልጋል",
+      "email_invalid": "የኢሜይል ቅርጸ-ቃል የተሳሳተ ነው",
+      "password_required": "የይለፍ ቃል ያስፈልጋል",
+      "password_min": "የይለፍ ቃል ቢያንስ 6 ቁምፊ ሊሆን አለበት",
+      "first_name_required": "የመጀመሪያ ስም ያስፈልጋል",
+      "last_name_required": "የአያት ስም ያስፈልጋል",
+      "refresh_token_required": "የመዳረሻ ታከን ያስፈልጋል",
+      "otp_required": "OTP ያስፈልጋል",
+      "new_password_required": "አዲስ የይለፍ ቃል ያስፈልጋል",
+      "old_password_required": "የአሮጌ የይለፍ ቃል ያስፈልጋል",
+      "purpose_required": "የሚፈጸምበት አላማ ያስፈልጋል",
+      "purpose_invalid": "የሚፈጸምበት አላማ የተሳሳተ ነው"
+    }
+  }
+}

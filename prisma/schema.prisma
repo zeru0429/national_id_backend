@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================
+// ENUMS
+// ============================
+
+enum Language {
+  EN
+  AM
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum AuthProvider {
+  TELEGRAM
+  PASSWORD
+  GOOGLE
+}
+
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum FileRole {
+  SOURCE_PDF
+  FRONT_ID
+  BACK_ID
+}
+
+// ============================
+// USER & AUTH
+// ============================
+
+model User {
+  id           String   @id @default(uuid())
+  telegramId   String?  @unique        // ADD THIS
+  phoneNumber  String?  @unique
+  email        String?  @unique
+  fullName     String?
+  language     Language @default(EN)
+  role         UserRole @default(USER)
+  isBlocked    Boolean  @default(false)
+
+  authAccounts AuthAccount[]
+  subscription Subscription?
+  generations  IDGeneration[]
+  usageLogs    UsageLog[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+
+model AuthAccount {
+  id             String        @id @default(uuid())
+  userId         String
+  provider       AuthProvider
+  providerUserId String        // telegramId | google sub | email
+  passwordHash   String?       // ONLY for PASSWORD provider
+
+  user           User          @relation(fields: [userId], references: [id])
+
+  createdAt      DateTime      @default(now())
+
+  @@unique([provider, providerUserId])
+}
+
+// ============================
+// SUBSCRIPTION & BILLING
+// ============================
+
+model Subscription {
+  id         String  @id @default(uuid())
+  userId     String  @unique
+  balance    Int     @default(0)   // ETB or credit units
+  totalUsed  Int     @default(0)
+  isActive   Boolean @default(true)
+
+  user       User    @relation(fields: [userId], references: [id])
+
+  updatedAt  DateTime @updatedAt
+}
+
+model UsageLog {
+  id             String   @id @default(uuid())
+  userId         String
+  generationId   String?
+  amount         Int
+  action         String   // GENERATE_ID, REGENERATE_ID, ADMIN_ADJUST
+  createdAt      DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id])
+}
+
+// ============================
+// ID GENERATION CORE
+// ============================
+
+model IDGeneration {
+  id            String            @id @default(uuid())
+  userId        String
+  status        GenerationStatus  @default(PENDING)
+
+  fin           String?           // Store FIN separately for easy queries
+  fcn           String?           // Store FCN separately for easy queries
+  phoneNumber   String?           // Store phone number separately if needed
+
+  extractedData Json              // FULL extracted object (am + en)
+
+  errorMessage  String?
+
+  cost          Int               // charged amount
+  files         StoredFile[]
+
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+
+// ============================
+// FILE STORAGE (EXTERNAL)
+// ============================
+
+model StoredFile {
+  id              String   @id @default(uuid())
+  generationId    String
+  role            FileRole
+  fileUrl         String
+  fileName        String
+  mimeType        String?
+  fileSize        Int?
+
+  generation      IDGeneration @relation(fields: [generationId], references: [id])
+
+  createdAt       DateTime @default(now())
+}

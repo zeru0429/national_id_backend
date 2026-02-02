@@ -1,0 +1,26 @@
+{
+  "welcome_message": "መግባት በተሳካ ሁኔታ ተፈጽሟል",
+  "common": {
+    "errors": {
+      "route_not_found": "መንገድ አልተገኘም",
+      "invalid_json": "የተሳሳተ JSON ",
+      "validation_error": "የማረጋገጫ ስህተት",
+      "duplicate_key": "ተደጋጋሚ ቁልፍ",
+      "resource_not_found": "ምንጭ አልተገኘም"
+    },
+    "validation": {
+      "email_required": "Email is required",
+      "email_invalid": "Email format is invalid",
+      "password_required": "Password is required",
+      "password_min": "Password must be at least 6 characters",
+      "first_name_required": "First name is required",
+      "last_name_required": "Last name is required",
+      "refresh_token_required": "Refresh token is required",
+      "otp_required": "OTP is required",
+      "new_password_required": "New password is required",
+      "old_password_required": "Old password is required",
+      "purpose_required": "Purpose is required",
+      "purpose_invalid": "Purpose is invalid"
+    }
+  }
+}

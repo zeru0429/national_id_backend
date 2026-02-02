@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Beteseb Salon SaaS API</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="logo.png" />
+
+    <style>
+      :root {
+        --primary: #1d4ed8;
+        --secondary: #6366f1;
+        --bg: #0f172a;
+        --card: rgba(255, 255, 255, 0.08);
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --border: rgba(255, 255, 255, 0.15);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Ubuntu,
+          "Helvetica Neue",
+          Arial,
+          sans-serif;
+        background:
+          radial-gradient(
+            1200px 600px at top,
+            rgba(99, 102, 241, 0.15),
+            transparent
+          ),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: 60px 20px;
+      }
+
+      /* HEADER */
+      .header {
+        text-align: center;
+        margin-bottom: 60px;
+      }
+      .logo {
+        width: 220px;
+        margin-bottom: 16px;
+        opacity: 0.95;
+      }
+      h1 {
+        font-size: 2.6rem;
+        margin: 0;
+        letter-spacing: -0.02em;
+      }
+      .subtitle {
+        color: var(--muted);
+        margin-top: 10px;
+        font-size: 1.05rem;
+      }
+      .status {
+        margin-top: 16px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: rgba(16, 185, 129, 0.15);
+        color: #6ee7b7;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        background: #34d399;
+        border-radius: 50%;
+      }
+
+      /* CARDS */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 24px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 24px;
+        backdrop-filter: blur(12px);
+      }
+      .card h2 {
+        margin: 0 0 14px 0;
+        color: #bfdbfe;
+        font-size: 1.2rem;
+      }
+      .card p {
+        color: var(--muted);
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 18px;
+        margin: 10px 0 0;
+      }
+      li {
+        margin-bottom: 8px;
+        color: var(--text);
+        font-size: 0.95rem;
+      }
+      code {
+        background: rgba(99, 102, 241, 0.15);
+        color: #c7d2fe;
+        padding: 3px 6px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+      }
+
+      /* FOOTER */
+      .footer {
+        margin-top: 70px;
+        text-align: center;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .footer strong {
+        color: #e5e7eb;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <!-- HEADER -->
+      <div class="header">
+        <img src="logo.png" alt="Beteseb Salon Logo" class="logo" />
+        <h1>Beteseb Salon SaaS API</h1>
+        <p class="subtitle">
+          Multi-Branch Salon Management with Real-Time Appointments & Employee
+          Tracking
+        </p>
+        <div class="status">
+          <span class="dot"></span>
+          API Online & Operational
+        </div>
+      </div>
+
+      <!-- GRID -->
+      <div class="grid">
+        <!-- ABOUT -->
+        <div class="card">
+          <h2>📌 What is Beteseb?</h2>
+          <p>
+            Beteseb is a multi-tenant salon management platform that allows
+            organizations to manage multiple branches (workspaces), employees,
+            services, and appointments in real-time.
+          </p>
+          <p>
+            It supports platform admins, salon owners, and staff with
+            permission-based access and real-time dashboards using REST APIs and
+            Socket.IO.
+          </p>
+        </div>
+
+        <!-- CORE MODULES -->
+        <div class="card">
+          <h2>🧩 Core Modules</h2>
+          <ul>
+            <li>💇‍♀️ Appointments & Service Steps</li>
+            <li>🏢 Branches / Workspaces</li>
+            <li>👨‍💼 Employees & Roles</li>
+            <li>💳 Services & Pricing</li>
+            <li>📊 Dashboard & Reports</li>
+            <li>🔔 Notifications & Announcements</li>
+          </ul>
+        </div>
+
+        <!-- REST API -->
+        <div class="card">
+          <h2>🔗 REST API</h2>
+          <ul>
+            <li><code>GET /api/v1/time</code> – Server & DB health</li>
+            <li><code>/api/v1/auth</code> – Authentication & Profile</li>
+            <li>
+              <code>/api/v1/appointments</code> – Create & manage appointments
+            </li>
+            <li><code>/api/v1/services</code> – Manage salon services</li>
+            <li><code>/api/v1/employees</code> – Employee & role management</li>
+            <li><code>/api/v1/dashboard</code> – Analytics & reports</li>
+          </ul>
+        </div>
+
+        <!-- SOCKET.IO -->
+        <div class="card">
+          <h2>📡 Real-Time Events</h2>
+          <p>
+            Beteseb uses <strong>Socket.IO</strong> to push live updates without
+            polling.
+          </p>
+          <ul>
+            <li>📺 Branch display updates</li>
+            <li>🎟 Appointment status changes</li>
+            <li>👨‍💼 Employee availability & assignments</li>
+            <li>📢 Live notifications & announcements</li>
+          </ul>
+        </div>
+
+        <!-- ROOMS -->
+        <div class="card">
+          <h2>🧠 Socket Rooms</h2>
+          <ul>
+            <li><code>public:display</code> – Branch lobby screens</li>
+            <li>
+              <code>appointment:{id}</code> – Appointment-specific updates
+            </li>
+            <li><code>workspace:{id}</code> – Branch workspace updates</li>
+            <li><code>platform:global</code> – Platform-wide admin updates</li>
+          </ul>
+        </div>
+
+        <!-- SECURITY -->
+        <div class="card">
+          <h2>🔐 Security & Stability</h2>
+          <ul>
+            <li>JWT authentication</li>
+            <li>Permission-based access control</li>
+            <li>Rate limiting & Helmet</li>
+            <li>Graceful shutdown handling</li>
+            <li>Database & multi-tenant health checks</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="footer">
+        © <span id="year"></span> <strong>Beteseb Salon SaaS</strong> ·
+        Engineered for real-time salon operations
+      </div>
+    </div>
+
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,74 @@
+name: Deploy Express Backend to Ubuntu VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy_backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Create deployment package
+        run: |
+          tar -czf deploy.tar.gz \
+            package.json \
+            package-lock.json \
+            src \
+            prisma \
+            public \
+            dev \
+            .env.example \
+            ecosystem.config.js
+
+      - name: Copy package to VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          port: ${{ secrets.VPS_PORT }}
+          key: ${{ secrets.SSH }}
+          source: "deploy.tar.gz"
+          target: "${{ secrets.VPS_REMOTE_PATH }}"
+          overwrite: true
+
+      - name: Extract and deploy on VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          port: ${{ secrets.VPS_PORT }}
+          key: ${{ secrets.SSH }}
+          script: |
+            set -e
+            cd ${{ secrets.VPS_REMOTE_PATH }}
+
+            if [ -f deploy.tar.gz ]; then
+              tar -xzf deploy.tar.gz -C .
+              rm -f deploy.tar.gz
+            fi
+
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+            npm install prisma@6.19.0 @prisma/client@6.19.0 --save-exact
+            npm ci --omit=dev --legacy-peer-deps
+            npm i
+            # npx prisma generate
+            # npx prisma migrate deploy
+            # npm run announcement
+
+            pm2 startOrRestart ecosystem.config.js --env production
+            pm2 save

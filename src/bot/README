@@ -1,0 +1,160 @@
+# Telegram ID Generation Bot
+
+A **Telegram bot** for generating ID cards from PDFs or images, managing past generations, searching IDs, and tracking user subscriptions. Built with **Node.js**, **Telegram Bot API**, and **Prisma ORM**.
+
+---
+
+## **Features**
+
+* **User Registration**
+
+  * Full name, phone number (required), and email (optional)
+  * Validates input formats
+* **ID Generation**
+
+  * Upload PDF or image to generate front/back ID
+  * Automatic extraction of data from PDF
+  * Deducts from subscription balance
+  * Stores generated ID history
+* **View Past Generations**
+
+  * Lists previously generated IDs
+  * Allows re-downloading via inline buttons
+* **Search IDs**
+
+  * Search by FCN, FIN, or name
+  * Results displayed with download buttons
+* **Centralized Callbacks**
+
+  * All inline button actions are routed through a **single callback dispatcher**
+* **Dynamic Main Menu**
+
+  * Shows subscription balance
+  * Allows navigation to generate IDs, view past IDs, or search
+
+---
+
+## **Folder Structure**
+
+```
+bot/
+├─ index.js                 # Bot entry point, message & callback listeners
+├─ utils/
+│  ├─ messageDispatcher.js  # Handles messages based on user state
+│  ├─ callbackDispatcher.js # Central callback query handler
+│  ├─ stateManager.js       # In-memory per-user state manager
+│  ├─ keyboards.js          # Inline keyboards for menus and actions
+├─ handlers/
+│  ├─ startHandler.js        # /start command and main menu
+│  ├─ registrationHandler.js # Handles user registration
+│  ├─ idGenerationHandler.js # ID generation, past IDs, search
+│  └─ index.js               # Registers all handlers
+modules/
+├─ users/
+│  └─ services/
+│     └─ usersService.js    # DB operations for users
+├─ usageLog/
+│  └─ services/
+│     └─ usageLogService.js # Logs usage and cost of ID generations
+services/
+├─ pdfService.js            # PDF parsing and data extraction
+├─ idCardGenerator.js       # Generates front/back ID images
+config/
+├─ db.js                    # Prisma client configuration
+├─ paths.js                 # TEMP_DIR, OUTPUT_DIR configuration
+.env                        # Environment variables (TELEGRAM_BOT_TOKEN, etc.)
+```
+
+---
+
+## **Bot Workflow**
+
+1. **User sends `/start`**
+
+   * Checks if user exists
+
+     * **Existing user:** sends main menu with current balance
+     * **New user:** starts registration flow
+2. **Registration**
+
+   * Step 1: Full Name
+   * Step 2: Phone Number
+   * Step 3: Email (optional)
+   * On completion, stores user and shows main menu
+3. **Main Menu**
+
+   * **Generate ID:** Starts upload process, checks subscription balance
+   * **View Past Generations:** Lists last 10 IDs with download buttons
+   * **Search IDs:** Prompts for query, searches by FCN/FIN/Name
+4. **ID Generation**
+
+   * User uploads PDF/image
+   * Bot downloads file, extracts data, generates front/back ID
+   * Saves generation record, deducts subscription cost
+   * Sends generated ID back to user
+5. **Callback Actions**
+
+   * Centralized in `callbackDispatcher.js`
+   * Handles:
+
+     * `generate_id`
+     * `view_past`
+     * `main_menu`
+     * `search_id`
+     * `download_{id}` (re-download past ID)
+6. **State Management**
+
+   * All per-user session states are tracked in `stateManager.js`
+   * Allows dynamic routing of messages and callbacks
+7. **Error Handling**
+
+   * Gracefully handles invalid input, missing files, or insufficient balance
+   * Sends informative messages to users
+
+---
+
+## **Extending the Bot**
+
+* **Add new menu options:** Add callback data in `keyboards.js` and handle in `callbackDispatcher.js`
+* **New ID generation features:** Extend `idGenerationHandler.js`
+* **Custom registration steps:** Add new steps in `registrationHandler.js` and update state
+* **File types:** Add new supported file types in `handleIDMessage()`
+
+---
+
+## **Environment Variables**
+
+```env
+TELEGRAM_BOT_TOKEN=<YOUR_TELEGRAM_BOT_TOKEN>
+DATABASE_URL=<YOUR_PRISMA_DATABASE_URL>
+```
+
+---
+
+## **Running the Bot**
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Run the bot:
+
+```bash
+npm run dev
+```
+
+3. Bot starts polling Telegram messages and callbacks.
+
+---
+
+## **Technologies Used**
+
+* **Node.js** – Backend runtime
+* **node-telegram-bot-api** – Telegram Bot API wrapper
+* **Prisma ORM** – Database management
+* **Axios** – File download for Telegram uploads
+* **PDF parsing & image generation** – Custom services
+
+
