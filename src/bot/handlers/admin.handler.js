@@ -26,10 +26,10 @@ async function handleAdminUsers(bot, chatId, page = 1, limit = 10) {
     inlineKeyboard.push([
       { text: `👤 ${globalIdx}`, callback_data: `admin_user_${user.id}` },
       { text: "💰 Add Balance", callback_data: `admin_addbal_${user.id}` },
-      {
-        text: user.role === "ADMIN" ? "👑 Remove Admin" : "👑 Make Admin",
-        callback_data: `admin_role_${user.id}`,
-      },
+      // {
+      //   text: user.role === "ADMIN" ? "👑 Remove Admin" : "👑 Make Admin",
+      //   callback_data: `admin_role_${user.id}`,
+      // },
     ]);
   });
 

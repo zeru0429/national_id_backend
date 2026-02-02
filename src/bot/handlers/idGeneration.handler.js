@@ -22,6 +22,17 @@ const idGenService = require("../services/idGeneration.service");
 const { downloadOBSFileAsBuffer } = require("../../services/obsService");
 
 async function startIDGeneration(bot, chatId, userId) {
+  // Check if already locked
+  if (stateManager.isLocked(chatId)) {
+    return bot.sendMessage(
+      chatId,
+      "⏳ Please wait for your current operation to complete.",
+      keyboards.getBackKeyboard("main_menu")
+    );
+  }
+
+
+
   const balanceCheck = await idGenService.checkBalance(userId);
   if (!balanceCheck.ok) {
     await bot.sendMessage(
@@ -34,6 +45,13 @@ async function startIDGeneration(bot, chatId, userId) {
     );
     return;
   }
+
+  // The lock will be set by the callback dispatcher
+  stateManager.set(chatId, {
+    step: "ID_AWAITING_FILE",
+    data: { userId },
+    action: "generate_id",
+  });
 
   await bot.sendMessage(
     chatId,
@@ -382,9 +400,11 @@ async function handleIDMessage(bot, msg) {
         keyboards.getBackKeyboard("main_menu")
       );
     }
+  } finally {
+    // ALWAYS CLEAN UP STATE
+    stateManager.remove(chatId);
   }
 
-  stateManager.remove(chatId);
 }
 
 async function handleViewPast(bot, chatId, userId, page = 1, limit = 10) {

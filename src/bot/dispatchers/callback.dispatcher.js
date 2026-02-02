@@ -16,6 +16,8 @@ const { withAdmin } = require("../middleware/admin.middleware");
 const { escapeMarkdownV2 } = require("../ui/formatters");
 const { downloadOBSFileAsBuffer } = require("../../services/obsService");
 const CREDIT_PACKAGES = [10, 25, 50, 100, 250, 500];
+const stateManagrt = require("../utils/stateManager");
+const { sendMainMenu } = require("../handlers/start.handler");
 
 function parsePositiveInt(value, fallback = null) {
   const n = Number.parseInt(String(value ?? "").trim(), 10);
@@ -51,19 +53,26 @@ async function handleCallbackQuery(bot, query) {
   const action = query?.data;
   const messageId = query?.message?.message_id;
   if (!chatId || !action) {
-    try {
-      await bot.answerCallbackQuery(query.id);
-    } catch { }
+    try { await bot.answerCallbackQuery(query.id); } catch { }
     return;
   }
+  // Block callbacks while user is locked
+  if (stateManager.isLocked(chatId)) {
+    return bot.answerCallbackQuery(query.id, {
+      text: "⏳ Your previous request is still being processed. Please wait...",
+      show_alert: true,
+    });
+  }
+
+
 
   try {
     await bot.answerCallbackQuery(query.id);
 
     switch (true) {
       case action === "main_menu": {
-        await safeDeleteMessage(bot, chatId, messageId);
-        const { sendMainMenu } = require("../handlers/start.handler");
+        stateManager.remove(chatId);
+        stateManager.unlock(chatId);
         await sendMainMenu(bot, chatId);
         break;
       }
@@ -71,6 +80,7 @@ async function handleCallbackQuery(bot, query) {
       case action === "generate_id": {
         await safeDeleteMessage(bot, chatId, messageId);
         await withAuth(async (_bot, ctx) => {
+          // This handler will handle its own locking
           return idGenerationHandler.startIDGeneration(_bot, ctx.chatId, ctx.user.id);
         })(bot, { chatId });
         break;
@@ -244,6 +254,7 @@ Status: ${profileData.subscription?.isActive ? "✅ Active" : "❌ Inactive"}`;
 
       case action.startsWith("dl_"): {
         await withAuth(async (_bot, ctx) => {
+          // Download operations should be locked
           return handleDownload(_bot, ctx.chatId, action, ctx.user.id, messageId);
         })(bot, { chatId });
         break;
@@ -390,6 +401,10 @@ Status: ${profileData.subscription?.isActive ? "✅ Active" : "❌ Inactive"}`;
       "❌ An error occurred\\. Please try again\\.",
       { parse_mode: "MarkdownV2", ...keyboards.getBackKeyboard("main_menu") }
     );
+  }
+  finally {
+    // ALWAYS UNLOCK IN FINALLY BLOCK
+    stateManager.unlock(chatId);
   }
 }
 

@@ -17,6 +17,17 @@ async function handleMessage(bot, msg) {
   if (msg.chat.type !== "private") return;
 
   // ----------------------------
+  // Check if user is currently processing a task
+  // ----------------------------
+  if (stateManager.isLocked(chatId)) {
+    return bot.sendMessage(
+      chatId,
+      "⏳ Your previous request is still being processed. Please wait until it's finished.",
+      { parse_mode: "Markdown", ...keyboards.getBackKeyboard("main_menu") }
+    );
+  }
+
+  // ----------------------------
   // Global commands
   // ----------------------------
   if (text === "/help") {
@@ -60,12 +71,7 @@ async function handleMessage(bot, msg) {
   }
 
   if (userState.step === "ADMIN_ADD_BALANCE") {
-    await adminHandler.handleAdminAddBalance(
-      bot,
-      chatId,
-      userState.data.userId,
-      text
-    );
+    await adminHandler.handleAdminAddBalance(bot, chatId, userState.data.userId, text);
     stateManager.remove(chatId);
     return;
   }
@@ -84,14 +90,19 @@ async function handleMessage(bot, msg) {
 
   if (registrationSteps.includes(userState.step)) {
     await handleRegistrationMessage(bot, msg);
-    return; // important to stop further handling
+    return; // stop further handling
   }
 
   // ----------------------------
   // ID generation flows
   // ----------------------------
   if (userState.step?.startsWith("ID_")) {
-    await handleIDMessage(bot, msg);
+    stateManager.lock(chatId, "ID Generation");
+    try {
+      await handleIDMessage(bot, msg);
+    } finally {
+      stateManager.unlock(chatId); // always unlock, even on error
+    }
     return;
   }
 
@@ -107,7 +118,12 @@ async function handleMessage(bot, msg) {
       );
     }
 
-    await searchID(bot, chatId, text, userState.data.userId);
+    stateManager.lock(chatId, "ID Search");
+    try {
+      await searchID(bot, chatId, text, userState.data.userId);
+    } finally {
+      stateManager.unlock(chatId);
+    }
     stateManager.remove(chatId);
     return;
   }
