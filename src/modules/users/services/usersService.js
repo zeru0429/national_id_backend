@@ -109,20 +109,34 @@ const blockUser = async (id) => {
  * =============================
  */
 
-// Find user by Telegram ID
+// Find user by Telegram ID (checks both User.telegramId and AuthAccount)
 const findByTelegramId = async (telegramId) => {
+  const id = telegramId.toString().trim();
+  // Try User.telegramId first (preferred for bot flows)
+  let user = await prisma.user.findUnique({
+    where: { telegramId: id },
+    include: { subscription: true },
+  });
+  if (user) return user;
+  // Fallback: AuthAccount lookup
   const authAccount = await prisma.authAccount.findUnique({
     where: {
       provider_providerUserId: {
         provider: "TELEGRAM",
-        providerUserId: telegramId.toString(),
+        providerUserId: id,
       },
     },
-    include: {
-      user: { include: { subscription: true } },
-    },
+    include: { user: { include: { subscription: true } } },
   });
-  return authAccount?.user || null;
+  if (authAccount?.user) {
+    // Sync telegramId to User for future lookups
+    await prisma.user.update({
+      where: { id: authAccount.user.id },
+      data: { telegramId: id },
+    });
+    return authAccount.user;
+  }
+  return null;
 };
 
 // Create user with Telegram
@@ -142,13 +156,14 @@ const createByTelegram = async (data) => {
     if (existingPhone) throw new Error("users.phone_exists");
   }
 
-  // Create user
+  // Create user (include telegramId when provided)
   const user = await prisma.user.create({
     data: {
       fullName: data.fullName,
       email: data.email,
       phoneNumber: data.phoneNumber,
       language: data.language || "EN",
+      telegramId: data.telegramId ? data.telegramId.toString() : null,
     },
   });
 
@@ -209,6 +224,100 @@ const findByPhone = async (phoneNumber) => {
   return prisma.user.findUnique({ where: { phoneNumber } });
 };
 
+// Get user with subscription (for profile display)
+const getWithSubscription = async (id) => {
+  return prisma.user.findUnique({
+    where: { id },
+    include: { subscription: true },
+  });
+};
+
+// Update profile fields (for bot edit profile)
+const updateProfile = async (id, data) => {
+  return prisma.user.update({
+    where: { id },
+    data: { fullName: data.fullName, phoneNumber: data.phoneNumber, email: data.email },
+  });
+};
+
+// =============================
+// Admin Methods
+// =============================
+
+const getUsersPaginated = async (page = 1, limit = 10) => {
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      skip: (page - 1) * limit,
+      take: limit,
+      include: {
+        subscription: true,
+        _count: { select: { generations: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.user.count(),
+  ]);
+  return { users, total, totalPages: Math.ceil(total / limit) };
+};
+
+const searchUsers = async (query, limit = 10) => {
+  return prisma.user.findMany({
+    where: {
+      OR: [
+        { phoneNumber: { contains: query, mode: "insensitive" } },
+        { fullName: { contains: query, mode: "insensitive" } },
+        { telegramId: { contains: query } },
+        { email: { contains: query, mode: "insensitive" } },
+      ],
+    },
+    include: {
+      subscription: true,
+      _count: { select: { generations: true } },
+    },
+    take: limit,
+  });
+};
+
+const getUserWithDetails = async (userId) => {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      subscription: true,
+      generations: {
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: { files: true },
+      },
+      _count: { select: { generations: true, usageLogs: true } },
+    },
+  });
+};
+
+const changeRole = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!user) throw new Error("users.not_found");
+  const newRole = user.role === "ADMIN" ? "USER" : "ADMIN";
+  return prisma.user.update({
+    where: { id: userId },
+    data: { role: newRole },
+  });
+};
+
+const toggleBlock = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isBlocked: true },
+  });
+  if (!user) throw new Error("users.not_found");
+  return prisma.user.update({
+    where: { id: userId },
+    data: { isBlocked: !user.isBlocked },
+  });
+};
+
 module.exports = {
   // Admin/Web
   getAllUsers,
@@ -222,4 +331,13 @@ module.exports = {
   updateByTelegram,
   findByEmail,
   findByPhone,
+  getWithSubscription,
+  updateProfile,
+
+  // Admin
+  getUsersPaginated,
+  searchUsers,
+  getUserWithDetails,
+  changeRole,
+  toggleBlock,
 };

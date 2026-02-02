@@ -1,4 +1,7 @@
-//bot/utils/stateManager.js
+/**
+ * In-memory per-user state manager for conversation flow
+ */
+
 const stateMap = new Map();
 
 function set(chatId, value) {

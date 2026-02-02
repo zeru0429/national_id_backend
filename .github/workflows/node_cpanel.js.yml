@@ -1,89 +1,88 @@
-name: Deploy Express Backend to Ubuntu VPS For national card API
+# name: Deploy Express Backend to Ubuntu VPS For national card API
+# on:
+#   push:
+#     branches:
+#       - main
 
-on:
-  push:
-    branches:
-      - main
+# jobs:
+#   deploy_backend:
+#     runs-on: ubuntu-latest
 
-jobs:
-  deploy_backend:
-    runs-on: ubuntu-latest
+#     steps:
+#       # Step 1: Checkout repository
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-    steps:
-      # Step 1: Checkout repository
-      - name: Checkout code
-        uses: actions/checkout@v4
+#       # Step 2: Set up Node.js
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: "18"
 
-      # Step 2: Set up Node.js
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
+#       # Step 3: Generate fresh package-lock.json in CI
+#       - name: Update package-lock.json
+#         run: npm install --legacy-peer-deps
 
-      # Step 3: Generate fresh package-lock.json in CI
-      - name: Update package-lock.json
-        run: npm install --legacy-peer-deps
+#       # Step 4: Create deployment package
+#       - name: Create deployment package
+#         run: |
+#           tar -czf deploy.tar.gz \
+#             README.md \
+#             package.json \
+#             package-lock.json \
+#             src \
+#             prisma \
+#             public \
+#             dev \
+#             .env.example \
+#             ecosystem.config.js
 
-      # Step 4: Create deployment package
-      - name: Create deployment package
-        run: |
-          tar -czf deploy.tar.gz \
-            README.md \
-            package.json \
-            package-lock.json \
-            src \
-            prisma \
-            public \
-            dev \
-            .env.example \
-            ecosystem.config.js
+#       # Step 5: Copy tar package to VPS via SCP
+#       - name: Copy package to VPS
+#         uses: appleboy/scp-action@master
+#         with:
+#           host: ${{ secrets.CPANEL_HOST }}
+#           username: ${{ secrets.CPANEL_USERNAME }}
+#           port: ${{ secrets.CPANEL_PORT }}
+#           key: ${{ secrets.CPANEL_SSH }}
+#           source: "deploy.tar.gz"
+#           target: "${{ secrets.CPANEL_REMOTE_PATH }}"
+#           overwrite: true
 
-      # Step 5: Copy tar package to VPS via SCP
-      - name: Copy package to VPS
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.CPANEL_HOST }}
-          username: ${{ secrets.CPANEL_USERNAME }}
-          port: ${{ secrets.CPANEL_PORT }}
-          key: ${{ secrets.CPANEL_SSH }}
-          source: "deploy.tar.gz"
-          target: "${{ secrets.CPANEL_REMOTE_PATH }}"
-          overwrite: true
+#       # Step 6: Extract and deploy on VPS
+#       - name: Extract and deploy on VPS
+#         uses: appleboy/ssh-action@master
+#         with:
+#           host: ${{ secrets.CPANEL_HOST }}
+#           username: ${{ secrets.CPANEL_USERNAME }}
+#           port: ${{ secrets.CPANEL_PORT }}
+#           key: ${{ secrets.CPANEL_SSH }}
+#           script: |
+#             set -e
+#             cd ${{ secrets.CPANEL_REMOTE_PATH }}
 
-      # Step 6: Extract and deploy on VPS
-      - name: Extract and deploy on VPS
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.CPANEL_HOST }}
-          username: ${{ secrets.CPANEL_USERNAME }}
-          port: ${{ secrets.CPANEL_PORT }}
-          key: ${{ secrets.CPANEL_SSH }}
-          script: |
-            set -e
-            cd ${{ secrets.CPANEL_REMOTE_PATH }}
+#             # 1️⃣ Extract tar.gz
+#             if [ -f deploy.tar.gz ]; then
+#               tar -xzf deploy.tar.gz -C .
+#               rm -f deploy.tar.gz
+#             fi
 
-            # 1️⃣ Extract tar.gz
-            if [ -f deploy.tar.gz ]; then
-              tar -xzf deploy.tar.gz -C .
-              rm -f deploy.tar.gz
-            fi
+#             # 2️⃣ Make Node and NPM available
+#             export PATH="/home/bossgran/nodevenv/national.bossgrandgarment.com/18/bin:$PATH"
 
-            # 2️⃣ Make Node and NPM available
-            export PATH="/home/bossgran/nodevenv/national.bossgrandgarment.com/18/bin:$PATH"
+#             # 3️⃣ Verify node & npm
+#             echo "Node version: $(node -v)"
+#             echo "NPM version: $(npm -v)"
 
-            # 3️⃣ Verify node & npm
-            echo "Node version: $(node -v)"
-            echo "NPM version: $(npm -v)"
+#             # 4️⃣ Install dependencies (lock file versions)
+#             npm ci --omit=dev --legacy-peer-deps
 
-            # 4️⃣ Install dependencies (lock file versions)
-            npm ci --omit=dev --legacy-peer-deps
+#             # 5️⃣ Run Prisma generate & migrations
+#             npx prisma generate
+#             npx prisma migrate deploy
 
-            # 5️⃣ Run Prisma generate & migrations
-            npx prisma generate
-            npx prisma migrate deploy
+#             # 6️⃣ Reload app using Passenger
+#             mkdir -p tmp
+#             touch tmp/restart.txt
 
-            # 6️⃣ Reload app using Passenger
-            mkdir -p tmp
-            touch tmp/restart.txt
-
-            echo "✅ Deployment complete, Passenger will restart the app automatically."
+#             echo "✅ Deployment complete, Passenger will restart the app automatically."

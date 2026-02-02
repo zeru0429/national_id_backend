@@ -39,9 +39,66 @@ const createLog = async ({ userId, generationId, amount, action }) => {
   });
 };
 
+// Get total spent by user
+const getTotalSpentByUser = async (userId) => {
+  const result = await prisma.usageLog.aggregate({
+    where: { userId },
+    _sum: { amount: true },
+  });
+  return result._sum.amount || 0;
+};
+
+// Admin: aggregated stats for dashboard
+const getAdminStats = async () => {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const [
+    totalRevenue,
+    todayRevenue,
+    totalGenerations,
+    todayGenerations,
+    totalUsers,
+    adminCount,
+    activeSubscriptions,
+    activeTodayUsers,
+  ] = await Promise.all([
+    prisma.usageLog.aggregate({ _sum: { amount: true } }),
+    prisma.usageLog.aggregate({
+      where: { createdAt: { gte: todayStart } },
+      _sum: { amount: true },
+    }),
+    prisma.iDGeneration.count(),
+    prisma.iDGeneration.count({
+      where: { createdAt: { gte: todayStart } },
+    }),
+    prisma.user.count(),
+    prisma.user.count({ where: { role: "ADMIN" } }),
+    prisma.subscription.count({ where: { isActive: true } }),
+    prisma.user.count({
+      where: {
+        generations: { some: { createdAt: { gte: todayStart } } },
+      },
+    }),
+  ]);
+
+  return {
+    totalRevenue: totalRevenue._sum.amount || 0,
+    todayRevenue: todayRevenue._sum.amount || 0,
+    totalGenerations,
+    todayGenerations,
+    totalUsers,
+    adminCount,
+    activeSubscriptions,
+    activeTodayUsers,
+  };
+};
+
 module.exports = {
   getUserLogs,
   getAllLogs,
   filterLogs,
   createLog,
+  getTotalSpentByUser,
+  getAdminStats,
 };
