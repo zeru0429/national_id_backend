@@ -55,9 +55,8 @@ function getAuthorizationSignature(method, headers = {}, objectKey = "") {
       objectKey.startsWith("/") ? objectKey.slice(1) : objectKey
     )}`;
 
-  const stringToSign = `${method}\n${headers["Content-MD5"] || ""}\n${
-    headers["Content-Type"] || ""
-  }\n${now}\n${buildCanonicalizedHeaders(headers)}${canonicalizedResource}`;
+  const stringToSign = `${method}\n${headers["Content-MD5"] || ""}\n${headers["Content-Type"] || ""
+    }\n${now}\n${buildCanonicalizedHeaders(headers)}${canonicalizedResource}`;
 
   const hmac = crypto.createHmac("sha1", OBS_CONFIG.secretKey);
   hmac.update(stringToSign, "utf8");
@@ -86,9 +85,8 @@ async function makeOBSRequest(
 
   const auth = getAuthorizationSignature(method, headers, objectKey);
 
-  const url = `${OBS_CONFIG.endpoint}/${
-    objectKey ? encodeURIComponent(objectKey) : ""
-  }`;
+  const url = `${OBS_CONFIG.endpoint}/${objectKey ? encodeURIComponent(objectKey) : ""
+    }`;
 
   const response = await axios({
     method,
@@ -157,9 +155,8 @@ async function uploadFiles(files = []) {
 // Check if a file is public
 async function checkFilePublic(objectKey) {
   try {
-    const url = `${OBS_CONFIG.endpoint}/${
-      OBS_CONFIG.bucketName
-    }/${encodeURIComponent(objectKey)}`;
+    const url = `${OBS_CONFIG.endpoint}/${OBS_CONFIG.bucketName
+      }/${encodeURIComponent(objectKey)}`;
     const res = await axios.head(url, { timeout: 5000 });
     return res.status === 200;
   } catch {
@@ -167,8 +164,19 @@ async function checkFilePublic(objectKey) {
   }
 }
 
+
+async function downloadOBSFileAsBuffer(url) {
+  const res = await axios.get(url, {
+    responseType: "arraybuffer",
+    timeout: 50000,
+  });
+  return Buffer.from(res.data);
+}
+
+
 module.exports = {
   ACL_TYPES,
+  downloadOBSFileAsBuffer,
   uploadFile,
   uploadFiles,
   checkFilePublic,

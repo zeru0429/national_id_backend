@@ -3,7 +3,7 @@ const fs = require("fs");
 const { renderAndCropPage } = require("../utils/pdfUtils");
 const { extractDataFromPDF } = require("../utils/pdfExtractor");
 const { readImageText } = require("../utils/ocrUtils");
-
+const obsService = require("./obsService");
 const outputDir = path.join(__dirname, "../../public/output");
 
 // Ensure output directory exists
@@ -16,7 +16,7 @@ if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
  * @returns {Promise<{ images: object, data: object }>}
  */
 async function processPDF(pdfPath, userId) {
-  const isProductBgRemoval = (process.env.ENV = "production" ? true : false);
+  const isProductBgRemoval = process.env.ENV === "production";
   const cropRegions = {
     profile: {
       x: 55,
@@ -24,7 +24,7 @@ async function processPDF(pdfPath, userId) {
       width: 80,
       height: 110,
       removeWhiteBg: true,
-      isLocalBgRemoval: true, //!isProductBgRemoval,
+      isLocalBgRemoval: !isProductBgRemoval,//true, 
       scale: 5,
     },
     // profile: { x: 438, y: 122, width: 68, height: 83, removeWhiteBg: true, scale: 5 },
@@ -85,11 +85,19 @@ async function processPDF(pdfPath, userId) {
     );
 
     const buffer = Buffer.from(base64, "base64");
-    const filename = `${key}.png`;
-    const filepath = path.join(outputDir, filename);
-    fs.writeFileSync(filepath, buffer);
+    // const filename = `${key}.png`;
 
-    images[key] = `http://localhost:${process.env.PORT}/output/${filename}`;
+    const obsResult = await obsService.uploadFile({
+      buffer,                             // image buffer
+      folder: `user-${userId}`,           // organize by user
+      objectKey: `${key}.png`,            // filename in bucket
+      contentType: "image/png",
+      acl: obsService.ACL_TYPES.PUBLIC_READ,
+    });
+    images[key] = obsResult.url;
+    // const filepath = path.join(outputDir, filename);
+    // fs.writeFileSync(filepath, buffer);
+    // images[key] = `http://localhost:${process.env.PORT}/output/${filename}`;
 
     if (key === "fin") finText = await readImageText(buffer, "eng+amh");
     if (key === "issueDate")

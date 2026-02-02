@@ -14,7 +14,7 @@ const usageLogService = require("../../modules/usageLog/services/usageLogService
 const { withAuth } = require("../middleware/auth.middleware");
 const { withAdmin } = require("../middleware/admin.middleware");
 const { escapeMarkdownV2 } = require("../ui/formatters");
-
+const { downloadOBSFileAsBuffer } = require("../../services/obsService");
 const CREDIT_PACKAGES = [10, 25, 50, 100, 250, 500];
 
 function parsePositiveInt(value, fallback = null) {
@@ -434,13 +434,15 @@ async function handleDownload(bot, chatId, action, userId, originalMessageId) {
     );
 
     for (const file of filesToSend) {
-      if (!fs.existsSync(file.fileUrl)) {
-        await bot.sendMessage(chatId, `❌ File not found: ${file.role}`);
-        continue;
-      }
-      await bot.sendDocument(chatId, fs.createReadStream(file.fileUrl), {
+
+
+      const buffer = await downloadOBSFileAsBuffer(file.fileUrl);
+
+      await bot.sendDocument(chatId, buffer, {
+        filename: `${file.role}-${name}.jpg`,
         caption: `${file.role} - ${name} (FCN: ${fcn})`,
       });
+
     }
 
     await bot.sendMessage(chatId, `✅ Download complete for ${name}!`, {
@@ -505,11 +507,12 @@ async function handleBatchDownload(bot, chatId, action, userId) {
         const record = await idGenerationService.findByIdForDownload(userId, id);
         if (record && record.userId === userId && record.files) {
           for (const file of record.files) {
-            if (fs.existsSync(file.fileUrl)) {
-              await bot.sendDocument(chatId, fs.createReadStream(file.fileUrl), {
-                caption: `📄 ${file.role} - ${record.extractedData?.name_en || "ID"}`,
-              });
-            }
+            const buffer = await downloadOBSFileAsBuffer(file.fileUrl);
+            await bot.sendDocument(chatId, buffer, {
+              filename: `${file.role}-${record.extractedData?.name_en || "ID"}.jpg`,
+              caption: `📄 ${file.role} - ${record.extractedData?.name_en || "ID"}`,
+            });
+
           }
           successfulDownloads++;
         } else {

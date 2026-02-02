@@ -19,6 +19,7 @@ const {
   SEARCH_MIN_LENGTH,
 } = require("../config/constants");
 const idGenService = require("../services/idGeneration.service");
+const { downloadOBSFileAsBuffer } = require("../../services/obsService");
 
 async function startIDGeneration(bot, chatId, userId) {
   const balanceCheck = await idGenService.checkBalance(userId);
@@ -255,7 +256,7 @@ async function handleIDMessage(bot, msg) {
         jpegQuality: 0.9,
       });
 
-      if (!fs.existsSync(frontPath) || !fs.existsSync(backPath))
+      if (!frontPath || !backPath)
         throw new Error("Failed to generate ID card images");
     } catch (genError) {
       await fsPromises.unlink(tempPath).catch(console.error);
@@ -293,9 +294,6 @@ async function handleIDMessage(bot, msg) {
       );
     } catch (dbError) {
       console.error("Database error:", dbError);
-      [frontPath, backPath].forEach((filePath) => {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      });
       await bot.editMessageText(
         "❌ *Database Error!*\n\nFailed to save. Please try again.",
         {
@@ -317,15 +315,31 @@ async function handleIDMessage(bot, msg) {
       { parse_mode: "Markdown" }
     );
 
-    await bot.sendDocument(chatId, fs.createReadStream(frontPath), {
-      caption: `🆔 *Front ID*\n👤 ${extractedData.name_en || "ID"}\n🔢 FCN: ${extractedData.fcn || "N/A"}`,
-      parse_mode: "Markdown",
-    });
-    await bot.sendDocument(chatId, fs.createReadStream(backPath), {
-      caption: `🆔 *Back ID*\n👤 ${extractedData.name_en || "ID"}\n🔢 FIN: ${extractedData.fin || "N/A"}`,
-      parse_mode: "Markdown",
-    });
 
+    const frontOBSUrl = frontPath;
+    const backOBSUrl = backPath;
+    const frontBuffer = await downloadOBSFileAsBuffer(frontOBSUrl);
+    const backBuffer = await downloadOBSFileAsBuffer(backOBSUrl);
+
+    await bot.sendDocument(
+      chatId,
+      frontBuffer,
+      {
+        filename: `Front-ID-${extractedData.fin || extractedData.fcn || "ID"}.jpg`,
+        caption: `🆔 *Front ID*\n👤 ${extractedData.name_en || "ID"}\n🔢 FCN: ${extractedData.fcn || "N/A"}`,
+        parse_mode: "Markdown",
+      }
+    );
+
+    await bot.sendDocument(
+      chatId,
+      backBuffer,
+      {
+        filename: `Back-ID-${extractedData.fin || extractedData.fcn || "ID"}.jpg`,
+        caption: `🆔 *Back ID*\n👤 ${extractedData.name_en || "ID"}\n🔢 FIN: ${extractedData.fin || "N/A"}`,
+        parse_mode: "Markdown",
+      }
+    );
     const updatedSub = await subscriptionService.getByUserId(userId);
     await bot.sendMessage(
       chatId,

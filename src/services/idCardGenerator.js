@@ -9,6 +9,7 @@ const {
   BACK_TEMPLATE,
   OUTPUT_DIR,
 } = require("../config/paths");
+const obsService = require("../services/obsService");
 
 /* ============================
    REGISTER MYRIAD PRO FONTS
@@ -335,10 +336,34 @@ async function generateIDCard({
     buffer = canvas.toBuffer("image/png");
   }
 
-  fs.writeFileSync(outputPath, buffer);
-  console.log(`✅ ID card saved: ${outputPath} (${outputFormat})`);
+  // Upload to OBS
+  const obsResult = await obsService.uploadFile({
+    buffer,
+    folder: `user-${data.fin}`,        // organize by user FIN or any user id
+    objectKey: fileName,
+    contentType: outputFormat === "png" ? "image/png" : "image/jpeg",
+    acl: obsService.ACL_TYPES.PUBLIC_READ,
+  });
 
-  return outputPath;
+  console.log(`✅ ID card uploaded to OBS: ${obsResult.url}`);
+  return obsResult.url;
+
+
+  // // Export
+  // let buffer;
+  // if (outputFormat === "jpg" || outputFormat === "jpeg") {
+  //   buffer = canvas.toBuffer("image/jpeg", {
+  //     quality: jpegQuality,
+  //     progressive: true,
+  //   });
+  // } else {
+  //   buffer = canvas.toBuffer("image/png");
+  // }
+
+  // fs.writeFileSync(outputPath, buffer);
+  // console.log(`✅ ID card saved: ${outputPath} (${outputFormat})`);
+
+  // return outputPath;
 }
 
 module.exports = { generateIDCard };
