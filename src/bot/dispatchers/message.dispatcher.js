@@ -16,6 +16,9 @@ async function handleMessage(bot, msg) {
 
   if (msg.chat.type !== "private") return;
 
+  // ----------------------------
+  // Global commands
+  // ----------------------------
   if (text === "/help") {
     return bot.sendMessage(chatId, messages.helpShort, {
       parse_mode: "Markdown",
@@ -31,6 +34,7 @@ async function handleMessage(bot, msg) {
         keyboards.getBackKeyboard("main_menu")
       );
     }
+
     const { handleCallbackQuery } = require("./callback.dispatcher");
     await handleCallbackQuery(bot, {
       message: { chat: { id: chatId }, message_id: msg.message_id },
@@ -40,9 +44,15 @@ async function handleMessage(bot, msg) {
     return;
   }
 
+  // ----------------------------
+  // User state management
+  // ----------------------------
   const userState = stateManager.get(chatId);
   if (!userState) return;
 
+  // ----------------------------
+  // Admin flows
+  // ----------------------------
   if (userState.step === "ADMIN_SEARCH_QUERY") {
     await adminHandler.handleAdminSearchUser(bot, chatId, text);
     stateManager.remove(chatId);
@@ -60,6 +70,9 @@ async function handleMessage(bot, msg) {
     return;
   }
 
+  // ----------------------------
+  // Registration / Profile edits
+  // ----------------------------
   const registrationSteps = [
     "AWAITING_FULL_NAME",
     "AWAITING_PHONE",
@@ -68,16 +81,23 @@ async function handleMessage(bot, msg) {
     "EDIT_PHONE",
     "EDIT_EMAIL",
   ];
+
   if (registrationSteps.includes(userState.step)) {
     await handleRegistrationMessage(bot, msg);
-    return;
+    return; // important to stop further handling
   }
 
+  // ----------------------------
+  // ID generation flows
+  // ----------------------------
   if (userState.step?.startsWith("ID_")) {
     await handleIDMessage(bot, msg);
     return;
   }
 
+  // ----------------------------
+  // Search flow
+  // ----------------------------
   if (userState.step === "AWAITING_SEARCH_QUERY") {
     if (!text || text.length < 2) {
       return bot.sendMessage(
@@ -86,9 +106,20 @@ async function handleMessage(bot, msg) {
         keyboards.getCancelKeyboard()
       );
     }
+
     await searchID(bot, chatId, text, userState.data.userId);
     stateManager.remove(chatId);
+    return;
   }
+
+  // ----------------------------
+  // Fallback
+  // ----------------------------
+  return bot.sendMessage(
+    chatId,
+    messages.errors.sessionExpired,
+    keyboards.getBackKeyboard("main_menu")
+  );
 }
 
 module.exports = { handleMessage };

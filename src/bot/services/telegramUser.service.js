@@ -10,6 +10,7 @@ async function getOrCreateUser(telegramId) {
   return user;
 }
 
+
 async function getProfileData(telegramId) {
   const user = await usersService.findByTelegramId(telegramId.toString());
   if (!user) return null;

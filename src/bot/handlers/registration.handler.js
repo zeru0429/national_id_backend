@@ -9,6 +9,7 @@ const stateManager = require("../utils/stateManager");
 const keyboards = require("../ui/keyboards");
 const validators = require("../utils/validators");
 const { sendMainMenu } = require("./start.handler");
+const { FREE_TRIAL_COUNT } = require("../config/constants");
 
 async function handleRegistrationMessage(bot, msg) {
   const chatId = msg.chat.id;
@@ -74,12 +75,12 @@ async function handleRegistrationMessage(bot, msg) {
           email: data.email,
         });
 
-        await subscriptionService.createForUser(user.id, 0);
+        await subscriptionService.createForUser(user.id, FREE_TRIAL_COUNT || 0);
         stateManager.remove(chatId);
 
         await bot.sendMessage(
           chatId,
-          `🎉 *Registration Complete!*\n\nWelcome *${data.fullName}* to ID Generation Bot!\n\n💰 *Get Started:*\n1. Contact admin to add balance\n2. Upload PDF to generate ID\n3. Manage your generated IDs`,
+          `🎉 *Registration Complete!*\n\nWelcome *${data.fullName}* to ID Generation Bot!\n\n💰 *Free Trial:*\nYou have *${FREE_TRIAL_COUNT} free ID generations* to get started!\n\nNext steps:\n1. Upload PDF to generate ID\n2. Manage your generated IDs`,
           { parse_mode: "Markdown" }
         );
         await sendMainMenu(bot, chatId);
