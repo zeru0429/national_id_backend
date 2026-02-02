@@ -62,23 +62,29 @@ jobs:
             set -e
             cd ${{ secrets.CPANEL_REMOTE_PATH }}
 
+            # 1️⃣ Extract tar.gz
             if [ -f deploy.tar.gz ]; then
               tar -xzf deploy.tar.gz -C .
               rm -f deploy.tar.gz
             fi
 
-            # Load NVM if exists
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            # 2️⃣ Make Node and NPM available
+            export PATH="/home/bossgran/nodevenv/national.bossgrandgarment.com/18/bin:$PATH"
 
-            # Install dependencies
+            # 3️⃣ Verify node & npm
+            echo "Node version: $(node -v)"
+            echo "NPM version: $(npm -v)"
+
+            # 4️⃣ Install dependencies
             npm install prisma@6.19.0 @prisma/client@6.19.0 --save-exact
             npm ci --omit=dev --legacy-peer-deps
 
-            # Run migrations
+            # 5️⃣ Run Prisma generate & migrations
             npx prisma generate
             npx prisma migrate deploy
 
-            # Use PM2 (it should be in PATH after loading NVM)
-            pm2 startOrRestart ecosystem.config.js --env production
-            pm2 save
+            # 6️⃣ Reload app using Passenger
+            mkdir -p tmp
+            touch tmp/restart.txt
+
+            echo "✅ Deployment complete, Passenger will restart the app automatically."
