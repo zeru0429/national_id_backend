@@ -10,7 +10,7 @@
     "module": "node dev/scripts/moduleCreator.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:reset": "prisma migrate reset",
+    " ": "prisma migrate reset",
     "prisma:studio": "prisma studio",
     "dev:electron": "concurrently \"npm run dev\" \"electron .\"",
     "seed-db": "node dev/scripts/seeders/seed_migrateDB.js",
