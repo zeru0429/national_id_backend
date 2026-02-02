@@ -12,9 +12,11 @@ async function getUsersPaginated(page = 1, limit = 10) {
 }
 
 async function searchUsers(query) {
-  return usersService.searchUsers(query, 10);
+  if (!query || typeof query !== "string" || !query.trim()) {
+    return { data: [], total: 0 };
+  }
+  return usersService.searchUsers(query.trim(), 10);
 }
-
 async function getUserDetails(userId) {
   const user = await usersService.getUserWithDetails(userId);
   if (!user) return null;
@@ -23,12 +25,21 @@ async function getUserDetails(userId) {
 }
 
 async function addBalanceToUser(userId, amount) {
-  const subscription = await subscriptionService.addBalance(userId, amount);
+  const parsedAmount = Number(amount);
+  if (!Number.isInteger(parsedAmount) || parsedAmount <= 0) {
+    throw new Error("Invalid credit amount");
+  }
+
+  const subscription =
+    (await subscriptionService.addBalance(userId, parsedAmount)) ||
+    (await subscriptionService.createSubscription(userId, parsedAmount));
+
   await usageLogService.createLog({
     userId,
-    amount,
-    action: "ADMIN_ADD_BALANCE",
+    amount: parsedAmount,
+    action: "ADMIN_ADJUST",
   });
+
   return subscription;
 }
 
@@ -48,6 +59,13 @@ async function getStats() {
   return usageLogService.getAdminStats();
 }
 
+async function getUserLogs(userId, limit = 20) {
+  const user = await usersService.getUserWithDetails(userId);
+  if (!user) return null;
+  const logs = await usageLogService.getUserLogs(userId);
+  return { user, logs: (logs || []).slice(0, limit) };
+}
+
 module.exports = {
   getUsersPaginated,
   searchUsers,
@@ -57,4 +75,5 @@ module.exports = {
   toggleUserBlock,
   getUserGenerations,
   getStats,
+  getUserLogs,
 };

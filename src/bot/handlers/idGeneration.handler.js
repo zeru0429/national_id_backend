@@ -25,7 +25,7 @@ async function startIDGeneration(bot, chatId, userId) {
   if (!balanceCheck.ok) {
     await bot.sendMessage(
       chatId,
-      `❌ *Insufficient Balance!*\n\n💰 Required: ${ID_GENERATION_COST} ETB\n💰 Available: ${balanceCheck.balance} ETB\n\nPlease contact admin to add balance.`,
+      `❌ *Insufficient Balance!*\n\n💰 Required: ${ID_GENERATION_COST} Credit\n💰 Available: ${balanceCheck.balance} Credit\n\nPlease contact admin to add balance.`,
       {
         parse_mode: "Markdown",
         ...keyboards.getBalanceKeyboard(),
@@ -36,7 +36,7 @@ async function startIDGeneration(bot, chatId, userId) {
 
   await bot.sendMessage(
     chatId,
-    `✅ *Ready to Generate ID*\n\n📊 *Cost:* ${ID_GENERATION_COST} ETB\n💰 *Your Balance:* ${balanceCheck.balance} ETB\n\nPlease upload a PDF of the ID document:`,
+    `✅ *Ready to Generate ID*\n\n📊 *Cost:* ${ID_GENERATION_COST} Credit\n💰 *Your Balance:* ${balanceCheck.balance} Credit\n\nPlease upload a PDF of the ID document:`,
     {
       parse_mode: "Markdown",
       ...keyboards.getCancelKeyboard(),
@@ -306,7 +306,7 @@ async function handleIDMessage(bot, msg) {
 
     await bot.sendMessage(
       chatId,
-      `🎉 *ID Generation Complete!*\n\n📋 *Extracted Details:*\n👤 Name: ${extractedData.name_en || "N/A"}\n🔢 FCN: ${extractedData.fcn || "N/A"}\n🔢 FIN: ${extractedData.fin || "N/A"}\n💰 Cost: ${ID_GENERATION_COST} ETB\n\nYour ID cards are ready:`,
+      `🎉 *ID Generation Complete!*\n\n📋 *Extracted Details:*\n👤 Name: ${extractedData.name_en || "N/A"}\n🔢 FCN: ${extractedData.fcn || "N/A"}\n🔢 FIN: ${extractedData.fin || "N/A"}\n💰 Cost: ${ID_GENERATION_COST} Credit\n\nYour ID cards are ready:`,
       { parse_mode: "Markdown" }
     );
 
@@ -322,7 +322,7 @@ async function handleIDMessage(bot, msg) {
     const updatedSub = await subscriptionService.getByUserId(userId);
     await bot.sendMessage(
       chatId,
-      `✅ *Generation Successful!*\n\n💰 *New Balance:* ${updatedSub.balance} ETB\n\nWhat would you like to do next?`,
+      `✅ *Generation Successful!*\n\n💰 *New Balance:* ${updatedSub.balance} Credit\n\nWhat would you like to do next?`,
       {
         parse_mode: "Markdown",
         reply_markup: {
@@ -397,7 +397,7 @@ async function handleViewPast(bot, chatId, userId, page = 1, limit = 10) {
     const shortId = gen.id.substring(0, 8);
     message += `*${globalIdx}. ${name}*\n`;
     message += `📅 ${date} | 🔢 FCN: ${gen.fcn || "N/A"}\n`;
-    message += `💳 Cost: ${gen.cost} ETB | Status: ✅\n\n`;
+    message += `💳 Cost: ${gen.cost} Credit | Status: ✅\n\n`;
     inlineKeyboard.push([
       { text: `⬇️ Front ${globalIdx}`, callback_data: `dl_f_${shortId}` },
       { text: `⬇️ Back ${globalIdx}`, callback_data: `dl_b_${shortId}` },

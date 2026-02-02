@@ -2,7 +2,7 @@
  * Bot-specific constants
  */
 
-const ID_GENERATION_COST = 1; // ETB per generation
+const ID_GENERATION_COST = 1;
 const MAX_FILE_SIZE_MB = 20;
 const DOWNLOAD_TIMEOUT_MS = 30000;
 const PAGINATION_LIMIT = 10;

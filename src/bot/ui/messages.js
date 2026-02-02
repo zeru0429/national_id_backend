@@ -52,20 +52,20 @@ For assistance, contact admin.`,
 *Registration:* ${new Date(user.createdAt).toLocaleDateString()}
 
 💰 *Subscription*
-Balance: ${subscription?.balance || 0} ETB
-Total Used: ${subscription?.totalUsed || 0} ETB
+Balance: ${subscription?.balance || 0} Credit
+Total Used: ${subscription?.totalUsed || 0} Credit
 Status: ${subscription?.isActive ? "✅ Active" : "❌ Inactive"}`,
 
   profileNotFound: "❌ Please register first using /start",
 
   balance: (subscription) => `💰 *Your Balance*
 
-*Current Balance:* ${subscription?.balance || 0} ETB
-*Total Used:* ${subscription?.totalUsed || 0} ETB
+*Current Balance:* ${subscription?.balance || 0} Credit
+*Total Used:* ${subscription?.totalUsed || 0} Credit
 *Available for ID Generations:* ${Math.floor((subscription?.balance || 0) / 1)} IDs
 
 💡 *Pricing:*
-• 1 ID Generation = 1 ETB
+• 1 ID Generation = 1 Credit
 • Contact admin to add balance`,
 
   errors: {
