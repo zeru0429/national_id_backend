@@ -3,26 +3,37 @@
  */
 
 const fs = require("fs");
-const usersService = require("../../modules/users/services/usersService");
 const stateManager = require("../utils/stateManager");
 const keyboards = require("../ui/keyboards");
 const idGenerationHandler = require("../handlers/idGeneration.handler");
 const adminHandler = require("../handlers/admin.handler");
 const idGenService = require("../services/idGeneration.service");
 const telegramUserService = require("../services/telegramUser.service");
+const usageLogService = require("../../modules/usageLog/services/usageLogService");
+const { withAuth } = require("../middleware/auth.middleware");
+const { withAdmin } = require("../middleware/admin.middleware");
+const { escapeMarkdownV2 } = require("../ui/formatters");
+
+const CREDIT_PACKAGES = [10, 25, 50, 100, 250, 500];
+
+function parsePositiveInt(value, fallback = null) {
+  const n = Number.parseInt(String(value ?? "").trim(), 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return n;
+}
 
 async function handleCallbackQuery(bot, query) {
-  const chatId = query.message.chat.id;
-  const action = query.data;
-  const messageId = query.message.message_id;
+  const chatId = query?.message?.chat?.id;
+  const action = query?.data;
+  const messageId = query?.message?.message_id;
+  if (!chatId || !action) {
+    try {
+      await bot.answerCallbackQuery(query.id);
+    } catch { }
+    return;
+  }
 
   try {
-    const currentUser = await usersService.findByTelegramId(chatId);
-    if (!currentUser) {
-      await bot.sendMessage(chatId, "❌ Please register first using /start");
-      return bot.answerCallbackQuery(query.id);
-    }
-
     await bot.answerCallbackQuery(query.id);
 
     switch (true) {
@@ -35,213 +46,281 @@ async function handleCallbackQuery(bot, query) {
 
       case action === "generate_id": {
         await bot.deleteMessage(chatId, messageId);
-        await idGenerationHandler.startIDGeneration(
-          bot,
-          chatId,
-          currentUser.id
-        );
+        await withAuth(async (_bot, ctx) => {
+          return idGenerationHandler.startIDGeneration(_bot, ctx.chatId, ctx.user.id);
+        })(bot, { chatId });
         break;
       }
 
       case action.startsWith("vp_"): {
-        const page = parseInt(action.split("_")[1] || "1", 10);
         await bot.deleteMessage(chatId, messageId);
-        await idGenerationHandler.handleViewPast(
-          bot,
-          chatId,
-          currentUser.id,
-          page,
-          10
-        );
+        const page = parsePositiveInt(action.split("_")[1], 1);
+        await withAuth(async (_bot, ctx) => {
+          return idGenerationHandler.handleViewPast(_bot, ctx.chatId, ctx.user.id, page, 10);
+        })(bot, { chatId });
         break;
       }
 
       case action === "search_id": {
         await bot.deleteMessage(chatId, messageId);
-        stateManager.set(chatId, {
-          step: "AWAITING_SEARCH_QUERY",
-          data: { userId: currentUser.id },
-        });
-        await bot.sendMessage(
-          chatId,
-          "🔍 *Search IDs*\n\nEnter FCN, FIN, or name to search:",
-          { parse_mode: "Markdown", ...keyboards.getCancelKeyboard() }
-        );
+        await withAuth(async (_bot, ctx) => {
+          stateManager.set(ctx.chatId, {
+            step: "AWAITING_SEARCH_QUERY",
+            data: { userId: ctx.user.id },
+          });
+          await _bot.sendMessage(
+            ctx.chatId,
+            "🔍 *Search IDs*\n\nEnter FCN, FIN, or name to search:",
+            { parse_mode: "MarkdownV2", ...keyboards.getCancelKeyboard() }
+          );
+        })(bot, { chatId });
         break;
       }
 
       case action === "profile": {
         await bot.deleteMessage(chatId, messageId);
-        const profileData = await telegramUserService.getProfileData(chatId);
-        if (!profileData) {
-          await bot.sendMessage(chatId, "❌ Profile not found.");
-          break;
-        }
-        const profileText = `👤 *Your Profile*
+        await withAuth(async (_bot, ctx) => {
+          const profileData = await telegramUserService.getProfileData(ctx.chatId);
+          if (!profileData) {
+            await _bot.sendMessage(ctx.chatId, "❌ Profile not found\\.", { parse_mode: "MarkdownV2" });
+            return;
+          }
+          const safe = (v) => escapeMarkdownV2(v ?? "");
+          const profileText = `👤 *Your Profile*
 
-*Name:* ${profileData?.fullName || "Not set"}
-*Phone:* ${profileData?.phoneNumber || "Not set"}
-*Email:* ${profileData?.email || "Not set"}
-*Language:* ${profileData?.language || "N/A"}
-*Role:* ${profileData?.role || "USER"}
+*Name:* ${safe(profileData.fullName || "Not set")}
+*Phone:* ${safe(profileData.phoneNumber || "Not set")}
+*Email:* ${safe(profileData.email || "Not set")}
+*Language:* ${safe(profileData.language || "N/A")}
+*Role:* ${safe(profileData.role || "USER")}
 
 💰 *Subscription*
-Balance: ${profileData?.subscription?.balance || 0} ETB
-Total Used: ${profileData?.subscription?.totalUsed || 0} ETB
-Status: ${profileData?.subscription?.isActive ? "✅ Active" : "❌ Inactive"}
-`;
-        await bot.sendMessage(chatId, profileText, {
-          parse_mode: "Markdown",
-          ...keyboards.getProfileKeyboard(),
-        });
+Balance: ${safe(profileData.subscription?.balance ?? 0)} Credit
+Total Used: ${safe(profileData.subscription?.totalUsed ?? 0)} Credit
+Status: ${profileData.subscription?.isActive ? "✅ Active" : "❌ Inactive"}`;
+          await _bot.sendMessage(ctx.chatId, profileText, {
+            parse_mode: "MarkdownV2",
+            ...keyboards.getProfileKeyboard(),
+          });
+        })(bot, { chatId });
         break;
       }
 
       case action === "balance_info": {
         await bot.deleteMessage(chatId, messageId);
-        const balanceData = await telegramUserService.getBalanceData(chatId);
-        const sub = balanceData?.subscription || {};
-        const balanceText = `💰 *Your Balance*
+        await withAuth(async (_bot, ctx) => {
+          const balanceData = await telegramUserService.getBalanceData(ctx.chatId);
+          const sub = balanceData?.subscription || {};
+          const safe = (v) => escapeMarkdownV2(v ?? "");
+          const balanceText = `💰 *Your Balance*
 
-*Current Balance:* ${sub.balance || 0} ETB
-*Total Used:* ${sub.totalUsed || 0} ETB
-*Available for ID Generations:* ${Math.floor((sub.balance || 0) / 1)} IDs
+*Current Balance:* ${safe(sub.balance || 0)} Credit
+*Total Used:* ${safe(sub.totalUsed || 0)} Credit
+*Available for ID Generations:* ${safe(Math.floor((sub.balance || 0) / 1))} IDs
 
 💡 *Pricing:*
-• 1 ID Generation = 1 ETB
-• Contact admin to add balance
-`;
-        await bot.sendMessage(chatId, balanceText, {
-          parse_mode: "Markdown",
-          ...keyboards.getBalanceKeyboard(),
-        });
+\\- 1 ID Generation \\= 1 Credit
+\\- To top up, tap *Add Balance*`;
+          await _bot.sendMessage(ctx.chatId, balanceText, {
+            parse_mode: "MarkdownV2",
+            ...keyboards.getBalanceKeyboard(),
+          });
+        })(bot, { chatId });
+        break;
+      }
+
+      case action === "add_balance": {
+        await bot.deleteMessage(chatId, messageId);
+        await withAuth(async (_bot, ctx) => {
+          const packages = CREDIT_PACKAGES.map((n) => `\\- ${n} Credit`).join("\n");
+          const text = `💳 *Add Balance*
+
+Available credit packages:
+${packages}
+
+To upgrade or top up, please contact @mihiretut21\\.`;
+          await _bot.sendMessage(ctx.chatId, text, {
+            parse_mode: "MarkdownV2",
+            ...keyboards.getBackKeyboard("balance_info"),
+          });
+        })(bot, { chatId });
+        break;
+      }
+
+      case action === "usage_history": {
+        await bot.deleteMessage(chatId, messageId);
+        await withAuth(async (_bot, ctx) => {
+          const logs = await usageLogService.getUserLogs(ctx.user.id);
+          const safe = (v) => escapeMarkdownV2(v ?? "");
+          const items = (logs || []).slice(0, 15);
+          if (!items.length) {
+            await _bot.sendMessage(
+              ctx.chatId,
+              "📊 *Usage History*\n\nNo usage logs yet\\.",
+              { parse_mode: "MarkdownV2", ...keyboards.getBackKeyboard("balance_info") }
+            );
+            return;
+          }
+          const lines = items.map((l, idx) => {
+            const d = new Date(l.createdAt).toLocaleDateString();
+            return `*${idx + 1}\\.* ${safe(l.action)} \\- ${safe(l.amount)} Credit \\(${safe(d)}\\)`;
+          });
+          await _bot.sendMessage(
+            ctx.chatId,
+            `📊 *Usage History* (latest ${items.length})\n\n${lines.join("\n")}`,
+            { parse_mode: "MarkdownV2", ...keyboards.getBackKeyboard("balance_info") }
+          );
+        })(bot, { chatId });
         break;
       }
 
       case action.startsWith("dl_"): {
-        await handleDownload(bot, chatId, action, currentUser.id, messageId);
+        await withAuth(async (_bot, ctx) => {
+          return handleDownload(_bot, ctx.chatId, action, ctx.user.id, messageId);
+        })(bot, { chatId });
         break;
       }
 
       case action.startsWith("download_batch_"):
       case action.startsWith("download_page_"): {
-        await handleBatchDownload(bot, chatId, action, currentUser.id);
+        await withAuth(async (_bot, ctx) => {
+          return handleBatchDownload(_bot, ctx.chatId, action, ctx.user.id);
+        })(bot, { chatId });
         break;
       }
 
       case action === "admin_panel": {
         await bot.deleteMessage(chatId, messageId);
-        if (currentUser.role !== "ADMIN") {
-          return bot.sendMessage(chatId, "❌ Admin access required.");
-        }
-        await bot.sendMessage(chatId, "👑 *Admin Panel*\n\nSelect an option:", {
-          parse_mode: "Markdown",
-          ...keyboards.getAdminKeyboard(),
-        });
+        await withAdmin(async (_bot, ctx) => {
+          await _bot.sendMessage(ctx.chatId, "👑 *Admin Panel*\n\nSelect an option:", {
+            parse_mode: "MarkdownV2",
+            ...keyboards.getAdminKeyboard(),
+          });
+        })(bot, { chatId });
         break;
       }
 
       case action === "admin_users": {
         await bot.deleteMessage(chatId, messageId);
-        await adminHandler.handleAdminUsers(bot, chatId, 1);
+        await withAdmin(async (_bot, ctx) => {
+          return adminHandler.handleAdminUsers(_bot, ctx.chatId, 1);
+        })(bot, { chatId });
         break;
       }
 
       case action.startsWith("admin_users_"): {
-        const page = parseInt(action.split("_")[2] || "1", 10);
         await bot.deleteMessage(chatId, messageId);
-        await adminHandler.handleAdminUsers(bot, chatId, page);
+        const page = parsePositiveInt(action.split("_")[2], 1);
+        await withAdmin(async (_bot, ctx) => {
+          return adminHandler.handleAdminUsers(_bot, ctx.chatId, page);
+        })(bot, { chatId });
         break;
       }
 
       case action === "admin_search": {
         await bot.deleteMessage(chatId, messageId);
-        const result = await adminHandler.handleAdminSearchUser(bot, chatId);
-        if (result?.step) {
-          stateManager.set(chatId, {
-            step: result.step,
-            data: result.data || {},
-          });
-        }
+        await withAdmin(async (_bot, ctx) => {
+          const result = await adminHandler.handleAdminSearchUser(_bot, ctx.chatId);
+          if (result?.step) {
+            stateManager.set(ctx.chatId, {
+              step: result.step,
+              data: result.data || {},
+            });
+          }
+        })(bot, { chatId });
         break;
       }
 
       case action.startsWith("admin_user_"): {
         const userId = action.replace("admin_user_", "");
         await bot.deleteMessage(chatId, messageId);
-        await adminHandler.handleAdminUserDetail(bot, chatId, userId);
+        await withAdmin(async (_bot, ctx) => {
+          return adminHandler.handleAdminUserDetail(_bot, ctx.chatId, userId);
+        })(bot, { chatId });
         break;
       }
 
       case action.startsWith("admin_addbal_"): {
         const userId = action.replace("admin_addbal_", "");
         await bot.deleteMessage(chatId, messageId);
-        const result = await adminHandler.handleAdminAddBalance(
-          bot,
-          chatId,
-          userId
-        );
-        if (result?.step) {
-          stateManager.set(chatId, {
-            step: result.step,
-            data: result.data || {},
-          });
-        }
+        await withAdmin(async (_bot, ctx) => {
+          const result = await adminHandler.handleAdminAddBalance(_bot, ctx.chatId, userId);
+          if (result?.step) {
+            stateManager.set(ctx.chatId, {
+              step: result.step,
+              data: result.data || {},
+            });
+          }
+        })(bot, { chatId });
         break;
       }
 
       case action.startsWith("admin_role_"): {
         const userId = action.replace("admin_role_", "");
         await bot.deleteMessage(chatId, messageId);
-        await adminHandler.handleAdminChangeRole(bot, chatId, userId);
+        await withAdmin(async (_bot, ctx) => {
+          return adminHandler.handleAdminChangeRole(_bot, ctx.chatId, userId);
+        })(bot, { chatId });
         break;
       }
 
       case action.startsWith("admin_block_"): {
         const userId = action.replace("admin_block_", "");
         await bot.deleteMessage(chatId, messageId);
-        await adminHandler.handleAdminBlockUser(bot, chatId, userId);
+        await withAdmin(async (_bot, ctx) => {
+          return adminHandler.handleAdminBlockUser(_bot, ctx.chatId, userId);
+        })(bot, { chatId });
         break;
       }
 
       case action.startsWith("admin_usergens_"): {
         const parts = action.split("_");
         const userId = parts[2];
-        const page = parseInt(parts[3] || "1", 10);
         await bot.deleteMessage(chatId, messageId);
-        await adminHandler.handleAdminUserGenerations(
-          bot,
-          chatId,
-          userId,
-          page
-        );
+        const page = parsePositiveInt(parts[3], 1);
+        await withAdmin(async (_bot, ctx) => {
+          return adminHandler.handleAdminUserGenerations(_bot, ctx.chatId, userId, page);
+        })(bot, { chatId });
         break;
       }
 
       case action === "admin_stats": {
         await bot.deleteMessage(chatId, messageId);
-        await adminHandler.handleAdminStats(bot, chatId);
+        await withAdmin(async (_bot, ctx) => {
+          return adminHandler.handleAdminStats(_bot, ctx.chatId);
+        })(bot, { chatId });
+        break;
+      }
+
+      case action.startsWith("admin_logs_"): {
+        const userId = action.replace("admin_logs_", "");
+        await bot.deleteMessage(chatId, messageId);
+        await withAdmin(async (_bot, ctx) => {
+          return adminHandler.handleAdminUserLogs(_bot, ctx.chatId, userId);
+        })(bot, { chatId });
         break;
       }
 
       case action.startsWith("edit_"): {
-        await handleEditProfile(bot, chatId, action, currentUser.id);
+        await withAuth(async (_bot, ctx) => {
+          return handleEditProfile(_bot, ctx.chatId, action, ctx.user.id);
+        })(bot, { chatId });
         break;
       }
 
       default:
         await bot.sendMessage(
           chatId,
-          "⚠️ Action not implemented yet.",
-          keyboards.getBackKeyboard("main_menu")
+          "⚠️ Unknown action\\.",
+          { parse_mode: "MarkdownV2", ...keyboards.getBackKeyboard("main_menu") }
         );
     }
   } catch (error) {
     console.error("Callback error:", error);
     await bot.sendMessage(
       chatId,
-      "❌ An error occurred. Please try again.",
-      keyboards.getBackKeyboard("main_menu")
+      "❌ An error occurred\\. Please try again\\.",
+      { parse_mode: "MarkdownV2", ...keyboards.getBackKeyboard("main_menu") }
     );
   }
 }
@@ -337,7 +416,7 @@ async function handleBatchDownload(bot, chatId, action, userId) {
     const processingMsg = await bot.sendMessage(
       chatId,
       `📦 *Preparing batch download...*\n\n📄 ${batchName}\n⏳ Initializing...`,
-      { parse_mode: "Markdown" }
+      { parse_mode: "MarkdownV2" }
     );
 
     let successfulDownloads = 0;
@@ -350,7 +429,7 @@ async function handleBatchDownload(bot, chatId, action, userId) {
         {
           chat_id: chatId,
           message_id: processingMsg.message_id,
-          parse_mode: "Markdown",
+          parse_mode: "MarkdownV2",
         }
       );
 
@@ -379,7 +458,7 @@ async function handleBatchDownload(bot, chatId, action, userId) {
       {
         chat_id: chatId,
         message_id: processingMsg.message_id,
-        parse_mode: "Markdown",
+        parse_mode: "MarkdownV2",
       }
     );
 
