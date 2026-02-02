@@ -45,7 +45,7 @@ jobs:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           port: ${{ secrets.CPANEL_PORT }}
-          key: ${{ secrets.SSH }}
+          key: ${{ secrets.CPANEL_SSH }}
           source: "deploy.tar.gz"
           target: "${{ secrets.CPANEL_REMOTE_PATH }}"
           overwrite: true
@@ -57,7 +57,7 @@ jobs:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           port: ${{ secrets.CPANEL_PORT }}
-          key: ${{ secrets.SSH }}
+          key: ${{ secrets.CPANEL_SSH }}
           script: |
             set -e
             cd ${{ secrets.CPANEL_REMOTE_PATH }}
