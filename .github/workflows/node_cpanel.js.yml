@@ -75,8 +75,7 @@ jobs:
             echo "Node version: $(node -v)"
             echo "NPM version: $(npm -v)"
 
-            # 4️⃣ Install dependencies
-            npm install prisma@6.19.0 @prisma/client@6.19.0 --save-exact
+            # 4️⃣ Install dependencies (lock file versions)
             npm ci --omit=dev --legacy-peer-deps
 
             # 5️⃣ Run Prisma generate & migrations
