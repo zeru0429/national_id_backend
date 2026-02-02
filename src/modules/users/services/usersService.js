@@ -318,6 +318,16 @@ const toggleBlock = async (userId) => {
   });
 };
 
+const getAdminTelegramIds = async () => {
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN", telegramId: { not: null } },
+    select: { telegramId: true },
+  });
+  return (admins || [])
+    .map((a) => (a.telegramId ? a.telegramId.toString() : null))
+    .filter(Boolean);
+};
+
 module.exports = {
   // Admin/Web
   getAllUsers,
@@ -340,4 +350,5 @@ module.exports = {
   getUserWithDetails,
   changeRole,
   toggleBlock,
+  getAdminTelegramIds,
 };

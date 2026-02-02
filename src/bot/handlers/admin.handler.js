@@ -207,7 +207,7 @@ async function handleAdminAddBalance(bot, chatId, userId, amount = null) {
   if (amount === null) {
     await bot.sendMessage(
       chatId,
-      "💰 *Add Balance to User*\n\nEnter amount to add (Credit):",
+      "💰 *Add Balance to User*\n\nEnter amount to add \\(Credit\\):",
       { parse_mode: "MarkdownV2", ...keyboards.getCancelKeyboard() }
     );
     return { step: "ADMIN_ADD_BALANCE", data: { userId } };
@@ -223,10 +223,11 @@ async function handleAdminAddBalance(bot, chatId, userId, amount = null) {
     const subscription = await adminService.addBalanceToUser(userId, amountNum);
     const user = await adminService.getUserDetails(userId);
     const safeName = escapeMarkdownV2(user?.fullName || "User");
+    const safeNum = (v) => escapeMarkdownV2(String(v ?? ""));
 
     await bot.sendMessage(
       chatId,
-      `✅ *Balance Added Successfully!*\n\n👤 *User:* ${safeName}\n💰 *Amount:* ${amountNum} Credit\n💳 *New Balance:* ${subscription.balance} Credit`,
+      `✅ *Balance Added Successfully*\n\n👤 *User:* ${safeName}\n💰 *Amount:* ${safeNum(amountNum)} Credit\n💳 *New Balance:* ${safeNum(subscription?.balance)} Credit`,
       {
         parse_mode: "MarkdownV2",
         reply_markup: {
@@ -257,11 +258,11 @@ async function handleAdminChangeRole(bot, chatId, userId) {
   try {
     const updatedUser = await adminService.changeUserRole(userId);
     const safeName = escapeMarkdownV2(updatedUser?.fullName || "User");
-    const newRole = updatedUser?.role || "USER";
+    const newRole = escapeMarkdownV2(updatedUser?.role || "USER");
 
     await bot.sendMessage(
       chatId,
-      `✅ *Role Updated!*\n\n👤 *User:* ${safeName}\n👑 *New Role:* ${newRole}`,
+      `✅ *Role Updated*\n\n👤 *User:* ${safeName}\n👑 *New Role:* ${newRole}`,
       {
         parse_mode: "MarkdownV2",
         reply_markup: {
@@ -289,7 +290,7 @@ async function handleAdminBlockUser(bot, chatId, userId) {
 
     await bot.sendMessage(
       chatId,
-      `✅ *User Status Updated!*\n\n👤 *User:* ${safeName}\n📊 *Status:* ${statusText}`,
+      `✅ *User Status Updated*\n\n👤 *User:* ${safeName}\n📊 *Status:* ${statusText}`,
       {
         parse_mode: "MarkdownV2",
         reply_markup: {
@@ -366,25 +367,26 @@ async function handleAdminStats(bot, chatId) {
     stats.totalGenerations > 0
       ? (stats.totalRevenue / stats.totalGenerations).toFixed(2)
       : "0";
+  const safeNum = (v) => escapeMarkdownV2(String(v ?? 0));
 
   const statsText = `
 📊 *Bot Statistics*
 
 👥 *Users*
-Total Users: ${stats.totalUsers}
-Admins: ${stats.adminCount}
-Active Subscriptions: ${stats.activeSubscriptions}
-Active Today: ${stats.activeTodayUsers}
+Total Users: ${safeNum(stats.totalUsers)}
+Admins: ${safeNum(stats.adminCount)}
+Active Subscriptions: ${safeNum(stats.activeSubscriptions)}
+Active Today: ${safeNum(stats.activeTodayUsers)}
 
 💳 *Usage*
-Total Generations: ${stats.totalGenerations}
-Today's Generations: ${stats.todayGenerations}
-Total Revenue: ${escapeMarkdownV2(stats.totalRevenue)} Credit
-Today's Revenue: ${escapeMarkdownV2(stats.todayRevenue)} Credit
+Total Generations: ${safeNum(stats.totalGenerations)}
+Today's Generations: ${safeNum(stats.todayGenerations)}
+Total Revenue: ${safeNum(stats.totalRevenue)} Credit
+Today's Revenue: ${safeNum(stats.todayRevenue)} Credit
 
 📈 *Performance*
-Avg\\. per User: ${avgPerUser} IDs
-Revenue per Gen: ${escapeMarkdownV2(revenuePerGen)} Credit
+Avg\\. per User: ${safeNum(avgPerUser)} IDs
+Revenue per Gen: ${safeNum(revenuePerGen)} Credit
 `;
 
   await bot.sendMessage(chatId, statsText.trim(), {

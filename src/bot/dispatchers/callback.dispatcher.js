@@ -9,6 +9,7 @@ const idGenerationHandler = require("../handlers/idGeneration.handler");
 const adminHandler = require("../handlers/admin.handler");
 const idGenService = require("../services/idGeneration.service");
 const telegramUserService = require("../services/telegramUser.service");
+const adminService = require("../services/admin.service");
 const usageLogService = require("../../modules/usageLog/services/usageLogService");
 const { withAuth } = require("../middleware/auth.middleware");
 const { withAdmin } = require("../middleware/admin.middleware");
@@ -20,6 +21,29 @@ function parsePositiveInt(value, fallback = null) {
   const n = Number.parseInt(String(value ?? "").trim(), 10);
   if (!Number.isFinite(n) || n <= 0) return fallback;
   return n;
+}
+
+async function safeDeleteMessage(bot, chatId, messageId) {
+  if (!chatId || !messageId) return;
+  try {
+    await bot.deleteMessage(chatId, messageId);
+  } catch (err) {
+    const desc =
+      err?.response?.body?.description ||
+      err?.response?.description ||
+      err?.message ||
+      "";
+    // Telegram returns these when the message is already gone / not deletable.
+    if (
+      typeof desc === "string" &&
+      (desc.includes("message to delete not found") ||
+        desc.includes("message can't be deleted") ||
+        desc.includes("message cannot be deleted"))
+    ) {
+      return;
+    }
+    console.error("deleteMessage failed:", err);
+  }
 }
 
 async function handleCallbackQuery(bot, query) {
@@ -38,14 +62,14 @@ async function handleCallbackQuery(bot, query) {
 
     switch (true) {
       case action === "main_menu": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         const { sendMainMenu } = require("../handlers/start.handler");
         await sendMainMenu(bot, chatId);
         break;
       }
 
       case action === "generate_id": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAuth(async (_bot, ctx) => {
           return idGenerationHandler.startIDGeneration(_bot, ctx.chatId, ctx.user.id);
         })(bot, { chatId });
@@ -53,7 +77,7 @@ async function handleCallbackQuery(bot, query) {
       }
 
       case action.startsWith("vp_"): {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         const page = parsePositiveInt(action.split("_")[1], 1);
         await withAuth(async (_bot, ctx) => {
           return idGenerationHandler.handleViewPast(_bot, ctx.chatId, ctx.user.id, page, 10);
@@ -62,7 +86,7 @@ async function handleCallbackQuery(bot, query) {
       }
 
       case action === "search_id": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAuth(async (_bot, ctx) => {
           stateManager.set(ctx.chatId, {
             step: "AWAITING_SEARCH_QUERY",
@@ -78,7 +102,7 @@ async function handleCallbackQuery(bot, query) {
       }
 
       case action === "profile": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAuth(async (_bot, ctx) => {
           const profileData = await telegramUserService.getProfileData(ctx.chatId);
           if (!profileData) {
@@ -107,7 +131,7 @@ Status: ${profileData.subscription?.isActive ? "✅ Active" : "❌ Inactive"}`;
       }
 
       case action === "balance_info": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAuth(async (_bot, ctx) => {
           const balanceData = await telegramUserService.getBalanceData(ctx.chatId);
           const sub = balanceData?.subscription || {};
@@ -130,25 +154,69 @@ Status: ${profileData.subscription?.isActive ? "✅ Active" : "❌ Inactive"}`;
       }
 
       case action === "add_balance": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAuth(async (_bot, ctx) => {
-          const packages = CREDIT_PACKAGES.map((n) => `\\- ${n} Credit`).join("\n");
-          const text = `💳 *Add Balance*
+          const rows = [];
+          for (let i = 0; i < CREDIT_PACKAGES.length; i += 2) {
+            const left = CREDIT_PACKAGES[i];
+            const right = CREDIT_PACKAGES[i + 1];
+            const row = [{ text: `${left} Credit`, callback_data: `addbal_pkg_${left}` }];
+            if (right) row.push({ text: `${right} Credit`, callback_data: `addbal_pkg_${right}` });
+            rows.push(row);
+          }
+          rows.push([{ text: "⬅️ Back", callback_data: "balance_info" }]);
 
-Available credit packages:
-${packages}
+          await _bot.sendMessage(
+            ctx.chatId,
+            "💳 *Add Balance*\n\nAvailable credit packages:",
+            { parse_mode: "MarkdownV2", reply_markup: { inline_keyboard: rows } }
+          );
+        })(bot, { chatId });
+        break;
+      }
 
-To upgrade or top up, please contact @mihiretut21\\.`;
-          await _bot.sendMessage(ctx.chatId, text, {
-            parse_mode: "MarkdownV2",
-            ...keyboards.getBackKeyboard("balance_info"),
-          });
+      case action.startsWith("addbal_pkg_"): {
+        await safeDeleteMessage(bot, chatId, messageId);
+        await withAuth(async (_bot, ctx) => {
+          const amount = parsePositiveInt(action.replace("addbal_pkg_", ""), null);
+          if (!amount) {
+            await _bot.sendMessage(ctx.chatId, "❌ Invalid package\\.", {
+              parse_mode: "MarkdownV2",
+              ...keyboards.getBackKeyboard("add_balance"),
+            });
+            return;
+          }
+
+          const admins = await adminService.getAdminTelegramIds();
+          const safe = (v) => escapeMarkdownV2(String(v ?? ""));
+          const safeName = safe(ctx.user?.fullName || "User");
+          const safeTg = safe(ctx.chatId);
+
+          const adminMsg = `💳 *Top\\-Up Request*\n\n👤 *User:* ${safeName}\n🆔 *Telegram ID:* ${safeTg}\n💰 *Package:* ${safe(amount)} Credit`;
+
+          let sent = 0;
+          for (const adminTgId of admins) {
+            try {
+              await _bot.sendMessage(adminTgId, adminMsg, { parse_mode: "MarkdownV2" });
+              sent++;
+            } catch (err) {
+              console.error("Failed to notify admin:", err);
+            }
+          }
+
+          await _bot.sendMessage(
+            ctx.chatId,
+            sent
+              ? `✅ Request sent\\.\n\n💰 Selected: *${safe(amount)}* Credit\n\nAn admin will contact you soon\\.`
+              : "⚠️ No admin is configured to receive requests right now\\.\n\nPlease contact support\\.",
+            { parse_mode: "MarkdownV2", ...keyboards.getBackKeyboard("balance_info") }
+          );
         })(bot, { chatId });
         break;
       }
 
       case action === "usage_history": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAuth(async (_bot, ctx) => {
           const logs = await usageLogService.getUserLogs(ctx.user.id);
           const safe = (v) => escapeMarkdownV2(v ?? "");
@@ -190,7 +258,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
       }
 
       case action === "admin_panel": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAdmin(async (_bot, ctx) => {
           await _bot.sendMessage(ctx.chatId, "👑 *Admin Panel*\n\nSelect an option:", {
             parse_mode: "MarkdownV2",
@@ -201,7 +269,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
       }
 
       case action === "admin_users": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAdmin(async (_bot, ctx) => {
           return adminHandler.handleAdminUsers(_bot, ctx.chatId, 1);
         })(bot, { chatId });
@@ -209,7 +277,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
       }
 
       case action.startsWith("admin_users_"): {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         const page = parsePositiveInt(action.split("_")[2], 1);
         await withAdmin(async (_bot, ctx) => {
           return adminHandler.handleAdminUsers(_bot, ctx.chatId, page);
@@ -218,7 +286,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
       }
 
       case action === "admin_search": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAdmin(async (_bot, ctx) => {
           const result = await adminHandler.handleAdminSearchUser(_bot, ctx.chatId);
           if (result?.step) {
@@ -233,7 +301,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
 
       case action.startsWith("admin_user_"): {
         const userId = action.replace("admin_user_", "");
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAdmin(async (_bot, ctx) => {
           return adminHandler.handleAdminUserDetail(_bot, ctx.chatId, userId);
         })(bot, { chatId });
@@ -242,7 +310,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
 
       case action.startsWith("admin_addbal_"): {
         const userId = action.replace("admin_addbal_", "");
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAdmin(async (_bot, ctx) => {
           const result = await adminHandler.handleAdminAddBalance(_bot, ctx.chatId, userId);
           if (result?.step) {
@@ -257,7 +325,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
 
       case action.startsWith("admin_role_"): {
         const userId = action.replace("admin_role_", "");
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAdmin(async (_bot, ctx) => {
           return adminHandler.handleAdminChangeRole(_bot, ctx.chatId, userId);
         })(bot, { chatId });
@@ -266,7 +334,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
 
       case action.startsWith("admin_block_"): {
         const userId = action.replace("admin_block_", "");
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAdmin(async (_bot, ctx) => {
           return adminHandler.handleAdminBlockUser(_bot, ctx.chatId, userId);
         })(bot, { chatId });
@@ -276,7 +344,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
       case action.startsWith("admin_usergens_"): {
         const parts = action.split("_");
         const userId = parts[2];
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         const page = parsePositiveInt(parts[3], 1);
         await withAdmin(async (_bot, ctx) => {
           return adminHandler.handleAdminUserGenerations(_bot, ctx.chatId, userId, page);
@@ -285,7 +353,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
       }
 
       case action === "admin_stats": {
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAdmin(async (_bot, ctx) => {
           return adminHandler.handleAdminStats(_bot, ctx.chatId);
         })(bot, { chatId });
@@ -294,7 +362,7 @@ To upgrade or top up, please contact @mihiretut21\\.`;
 
       case action.startsWith("admin_logs_"): {
         const userId = action.replace("admin_logs_", "");
-        await bot.deleteMessage(chatId, messageId);
+        await safeDeleteMessage(bot, chatId, messageId);
         await withAdmin(async (_bot, ctx) => {
           return adminHandler.handleAdminUserLogs(_bot, ctx.chatId, userId);
         })(bot, { chatId });

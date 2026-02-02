@@ -66,6 +66,10 @@ async function getUserLogs(userId, limit = 20) {
   return { user, logs: (logs || []).slice(0, limit) };
 }
 
+async function getAdminTelegramIds() {
+  return usersService.getAdminTelegramIds();
+}
+
 module.exports = {
   getUsersPaginated,
   searchUsers,
@@ -76,4 +80,5 @@ module.exports = {
   getUserGenerations,
   getStats,
   getUserLogs,
+  getAdminTelegramIds,
 };
