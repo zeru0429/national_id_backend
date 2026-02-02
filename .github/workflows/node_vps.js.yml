@@ -39,7 +39,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           port: ${{ secrets.VPS_PORT }}
-          key: ${{ secrets.SSH }}
+          key: ${{ secrets.VPS_SSH }}
           source: "deploy.tar.gz"
           target: "${{ secrets.VPS_REMOTE_PATH }}"
           overwrite: true
@@ -50,7 +50,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           port: ${{ secrets.VPS_PORT }}
-          key: ${{ secrets.SSH }}
+          key: ${{ secrets.VPS_SSH }}
           script: |
             set -e
             cd ${{ secrets.VPS_REMOTE_PATH }}
