@@ -141,31 +141,53 @@ const findByTelegramId = async (telegramId) => {
 
 // Create user with Telegram
 const createByTelegram = async (data) => {
+  const normalizedEmail = data.email ? data.email.toString().trim().toLowerCase() : null;
+  const normalizedPhone = data.phoneNumber
+    ? data.phoneNumber.toString().trim().replace(/\s+/g, "")
+    : null;
+
   // Check for existing email or phone
-  if (data.email) {
+  if (normalizedEmail) {
     const existingEmail = await prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email: normalizedEmail },
     });
     if (existingEmail) throw new Error("users.email_exists");
   }
 
-  if (data.phoneNumber) {
+  if (normalizedPhone) {
     const existingPhone = await prisma.user.findUnique({
-      where: { phoneNumber: data.phoneNumber },
+      where: { phoneNumber: normalizedPhone },
     });
     if (existingPhone) throw new Error("users.phone_exists");
   }
 
-  // Create user (include telegramId when provided)
-  const user = await prisma.user.create({
-    data: {
-      fullName: data.fullName,
-      email: data.email,
-      phoneNumber: data.phoneNumber,
-      language: data.language || "EN",
-      telegramId: data.telegramId ? data.telegramId.toString() : null,
-    },
-  });
+  let user;
+  try {
+    // Create user (include telegramId when provided)
+    user = await prisma.user.create({
+      data: {
+        fullName: data.fullName,
+        email: normalizedEmail,
+        phoneNumber: normalizedPhone,
+        language: data.language || "EN",
+        telegramId: data.telegramId ? data.telegramId.toString() : null,
+      },
+    });
+  } catch (err) {
+    // Handle races / unique constraints gracefully
+    if (err?.code === "P2002") {
+      const targets = err?.meta?.target || [];
+      if (Array.isArray(targets) && targets.includes("phoneNumber")) {
+        throw new Error("users.phone_exists");
+      }
+      if (Array.isArray(targets) && targets.includes("email")) {
+        throw new Error("users.email_exists");
+      }
+      // Fallback: generic conflict
+      throw new Error("users.conflict");
+    }
+    throw err;
+  }
 
   // Create Telegram auth account
   await prisma.authAccount.create({

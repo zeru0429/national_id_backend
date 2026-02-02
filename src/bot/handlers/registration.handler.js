@@ -44,7 +44,7 @@ async function handleRegistrationMessage(bot, msg) {
             { parse_mode: "Markdown", ...keyboards.getCancelKeyboard() }
           );
         }
-        data.phoneNumber = text;
+        data.phoneNumber = text.replace(/\s+/g, "");
         data.registrationStep = 3;
         stateManager.set(chatId, { step: "AWAITING_EMAIL", data });
         return bot.sendMessage(chatId, messages.start.registrationStep3, {
@@ -158,7 +158,7 @@ async function handleRegistrationMessage(bot, msg) {
   } catch (err) {
     console.error("Registration error:", err);
     stateManager.remove(chatId);
-    if (err.code === "P2002") {
+    if (err.code === "P2002" || err.message === "users.phone_exists" || err.message === "users.email_exists") {
       await bot.sendMessage(
         chatId,
         "❌ *Registration Failed!*\n\nThis phone number or email is already registered. Please use different credentials.",
