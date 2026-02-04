@@ -1,0 +1,12 @@
+{
+  "detection": {
+    "no_image_provided": "No image file provided",
+    "process_success": "Image processed successfully",
+    "detection_success": "Detection completed successfully",
+    "no_person_detected": "No person detected in the image",
+    "detection_failed": "Detection failed",
+    "invalid_base64": "Invalid base64 image data",
+    "models_failed": "Failed to initialize AI models",
+    "service_healthy": "Detection service is healthy"
+  }
+}

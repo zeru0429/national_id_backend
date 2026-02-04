@@ -4,6 +4,7 @@ const subscription = require("./modules/subscription/index");
 const idGeneration = require("./modules/idGeneration/index");
 const usageLog = require("./modules/usageLog/index");
 const storedFile = require("./modules/storedFile/index");
+const detection = require("./modules/detection/index");
 
 module.exports = {
   auth,
@@ -12,4 +13,5 @@ module.exports = {
   idGeneration,
   usageLog,
   storedFile,
+  detection,
 };

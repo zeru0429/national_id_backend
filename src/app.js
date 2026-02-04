@@ -148,6 +148,7 @@ app.use("/api/v1/subscription", routeIndex.subscription.subscriptionRoutes);
 app.use("/api/v1/id-generation", routeIndex.idGeneration.idGenerationRoutes);
 app.use("/api/v1/usage-log", routeIndex.usageLog.usageLogRoutes);
 app.use("/api/v1/files", routeIndex.storedFile.storedFileRoutes);
+app.use("/api/v1/detection", routeIndex.detection.detectionRoutes);
 
 // Error Handling
 app.use(notFoundHandler);
