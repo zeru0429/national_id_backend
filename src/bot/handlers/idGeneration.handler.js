@@ -254,7 +254,7 @@ async function handleIDMessage(bot, msg) {
     let frontPath;
     let backPath;
     try {
-
+      console.log(extractedData)
       frontPath = await generateIDCard({
         side: "front",
         data: extractedData,

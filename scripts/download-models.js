@@ -1,129 +1,177 @@
+// download-models.js - Corrected BRIA path
 const { pipeline } = require("@xenova/transformers");
 const fs = require("fs");
 const path = require("path");
+require("dotenv").config();
 
 // Set cache directory
 const CACHE_DIR = path.join(__dirname, "../ai-models-cache");
 process.env.XENOVA_CACHE_DIR = CACHE_DIR;
 
+const PIPELINE_OPTIONS = {
+  use_auth_token: process.env.HUGGINGFACEHUB_API_TOKEN,
+};
+
 console.log("🚀 Starting model download...");
 console.log(`📁 Cache directory: ${CACHE_DIR}`);
 
-// Track progress with better formatting
+// Track progress
 let lastProgress = {
   detector: 0,
   segmenter: 0,
+  background: 0,
 };
 
 async function downloadModels() {
   try {
-    console.log("📦 Downloading detection model (DETR)...");
     const startTime = Date.now();
 
-    // Download detection model
-    const detector = await pipeline(
-      "object-detection",
-      "Xenova/detr-resnet-50",
-      {
-        progress_callback: (progress) => {
-          if (progress && progress.progress !== undefined) {
-            const percent = Math.round(progress.progress); // Already a percentage!
-
-            // Only log when progress increases by at least 1%
-            if (percent > lastProgress.detector) {
-              lastProgress.detector = percent;
-
-              // Create progress bar
-              const barLength = 20;
-              const filled = Math.round((percent / 100) * barLength);
-              const empty = barLength - filled;
-              const bar = "█".repeat(filled) + "░".repeat(empty);
-
-              console.log(`🔍 Detection: ${bar} ${percent}%`);
-            }
+    // 1️⃣ Download detection model (DETR)
+    console.log("📦 Downloading detection model (DETR)...");
+    await pipeline("object-detection", "Xenova/detr-resnet-50", {
+      ...PIPELINE_OPTIONS,
+      progress_callback: (progress) => {
+        if (progress && progress.progress !== undefined) {
+          const percent = Math.round(progress.progress);
+          if (percent > lastProgress.detector) {
+            lastProgress.detector = percent;
+            console.log(`🔍 Detection: ${getProgressBar(percent)} ${percent}%`);
           }
-        },
+        }
       },
-    );
+    });
+    console.log("✅ Detection model downloaded!\n");
 
-    console.log("✅ Detection model downloaded!");
-    console.log("\n📦 Downloading segmentation model (SegFormer)...");
-
-    // Reset progress tracking
+    // 2️⃣ Download clothes segmentation model
+    console.log("📦 Downloading clothes segmentation model...");
     lastProgress.segmenter = 0;
+    await pipeline("image-segmentation", "Xenova/segformer_b2_clothes", {
+      ...PIPELINE_OPTIONS,
+      progress_callback: (progress) => {
+        if (progress && progress.progress !== undefined) {
+          const percent = Math.round(progress.progress);
+          if (percent > lastProgress.segmenter) {
+            lastProgress.segmenter = percent;
+            console.log(
+              `👕 Clothes Segmentation: ${getProgressBar(percent)} ${percent}%`
+            );
+          }
+        }
+      },
+    });
+    console.log("✅ Clothes segmentation model downloaded!\n");
 
-    // Download segmentation model
-    const segmenter = await pipeline(
-      "image-segmentation",
-      "Xenova/segformer_b2_clothes",
-      {
+    // 3️⃣ Download background removal model
+    console.log("📦 Downloading background removal model...");
+    lastProgress.background = 0;
+
+    let bgModelName = "";
+
+    // Try BRIA first (correct path)
+    try {
+      console.log("🔄 Trying BRIA RMBG model...");
+      await pipeline("image-segmentation", "briaai/RMBG-1.4", {
+        ...PIPELINE_OPTIONS,
         progress_callback: (progress) => {
           if (progress && progress.progress !== undefined) {
-            const percent = Math.round(progress.progress); // Already a percentage!
-
-            // Only log when progress increases by at least 1%
-            if (percent > lastProgress.segmenter) {
-              lastProgress.segmenter = percent;
-
-              // Create progress bar
-              const barLength = 20;
-              const filled = Math.round((percent / 100) * barLength);
-              const empty = barLength - filled;
-              const bar = "█".repeat(filled) + "░".repeat(empty);
-
-              console.log(`🎭 Segmentation: ${bar} ${percent}%`);
+            const percent = Math.round(progress.progress);
+            if (percent > lastProgress.background) {
+              lastProgress.background = percent;
+              console.log(
+                `🎭 Background Removal: ${getProgressBar(percent)} ${percent}%`
+              );
             }
           }
         },
-      },
-    );
+      });
+      bgModelName = "RMBG-1.4";
+      console.log("✅ Background removal model (BRIA RMBG) downloaded!");
+    } catch (briaError) {
+      console.warn("⚠️ BRIA RMBG failed:", briaError.message);
+
+      // Fallback: U2Net-cloth
+      try {
+        console.log("🔄 Trying U2Net-cloth model...");
+        await pipeline(
+          "image-segmentation",
+          "Xenova/u2net_cloth_segmentation",
+          {
+            ...PIPELINE_OPTIONS,
+            progress_callback: (progress) => {
+              if (progress && progress.progress !== undefined) {
+                const percent = Math.round(progress.progress);
+                if (percent > lastProgress.background) {
+                  lastProgress.background = percent;
+                  console.log(
+                    `🎭 Background Removal: ${getProgressBar(
+                      percent
+                    )} ${percent}%`
+                  );
+                }
+              }
+            },
+          }
+        );
+        bgModelName = "u2net_cloth_segmentation";
+        console.log("✅ U2Net-cloth model downloaded!");
+      } catch (u2netError) {
+        console.warn("⚠️ U2Net-cloth failed:", u2netError.message);
+
+        // Fallback: U2Net-human
+        try {
+          console.log("🔄 Trying simple U2Net model...");
+          await pipeline("image-segmentation", "Xenova/u2net-human-seg", {
+            ...PIPELINE_OPTIONS,
+            progress_callback: (progress) => {
+              if (progress && progress.progress !== undefined) {
+                const percent = Math.round(progress.progress);
+                if (percent > lastProgress.background) {
+                  lastProgress.background = percent;
+                  console.log(
+                    `🎭 Background Removal: ${getProgressBar(
+                      percent
+                    )} ${percent}%`
+                  );
+                }
+              }
+            },
+          });
+          bgModelName = "u2net-human-seg";
+          console.log("✅ U2Net-human-seg model downloaded!");
+        } catch (simpleError) {
+          console.warn(
+            "⚠️ All background models failed, using clothes segmentation as fallback"
+          );
+          bgModelName = "segformer_b2_clothes (fallback)";
+        }
+      }
+    }
 
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.log(
-      `\n✅ All models downloaded successfully in ${elapsed} seconds!`,
-    );
+    console.log(`\n✅ All models downloaded in ${elapsed} seconds!`);
     console.log(`📁 Models cached at: ${CACHE_DIR}`);
 
-    // Show file sizes
-    try {
-      const modelPaths = [
-        path.join(CACHE_DIR, "Xenova/detr-resnet-50/model.onnx"),
-        path.join(CACHE_DIR, "Xenova/segformer_b2_clothes/model.onnx"),
-      ];
-
-      let totalSize = 0;
-      modelPaths.forEach((modelPath) => {
-        if (fs.existsSync(modelPath)) {
-          const stats = fs.statSync(modelPath);
-          const sizeMB = (stats.size / (1024 * 1024)).toFixed(1);
-          totalSize += parseFloat(sizeMB);
-          const modelName = path.basename(path.dirname(modelPath));
-          console.log(`   ${modelName}: ${sizeMB} MB`);
-        }
-      });
-
-      console.log(`   Total: ${totalSize.toFixed(1)} MB`);
-    } catch (sizeError) {
-      // Ignore size errors
-    }
+    console.log("\n📋 Downloaded models summary:");
+    console.log("   ✅ Xenova/detr-resnet-50 - Person detection");
+    console.log("   ✅ Xenova/segformer_b2_clothes - Clothes segmentation");
+    if (bgModelName) console.log(`   ✅ ${bgModelName} - Background removal`);
 
     process.exit(0);
   } catch (error) {
     console.error("❌ Download failed:", error.message);
-    console.error("Stack:", error.stack);
     process.exit(1);
   }
 }
 
-// Handle process signals
-process.on("SIGINT", () => {
-  console.log("\n\n⚠️ Download interrupted by user");
-  process.exit(0);
-});
+function getProgressBar(percent) {
+  const barLength = 20;
+  const filled = Math.round((percent / 100) * barLength);
+  return "█".repeat(filled) + "░".repeat(barLength - filled);
+}
 
-process.on("unhandledRejection", (error) => {
-  console.error("❌ Unhandled rejection:", error);
-  process.exit(1);
+process.on("SIGINT", () => {
+  console.log("\n\n⚠️ Download interrupted");
+  process.exit(0);
 });
 
 downloadModels();

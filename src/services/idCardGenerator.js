@@ -214,6 +214,9 @@ function drawText(ctx, text, x, y, maxWidth, fontSize, font, fontWeight) {
  *   jpegQuality: 0..1 (only for jpg)
  */
 
+
+
+
 async function generateIDCard({
   side = "front",
   data = {},
