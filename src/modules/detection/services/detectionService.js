@@ -6,7 +6,7 @@ const sharp = require("sharp");
 const { pipeline } = require("@xenova/transformers");
 const { prisma } = require("../../../config/db");
 const { OUTPUT_DIR } = require("../../../config/paths");
-const backgroundRemovalService = require("./backgroundRemovalService");
+const backgroundRemovalService = require("../services/barQrDetectionService");
 
 // Cache for AI models
 let detector = null;
@@ -29,7 +29,7 @@ const initializeModels = async () => {
 
       segmenter = await pipeline(
         "image-segmentation",
-        "Xenova/segformer_b2_clothes"
+        "Xenova/segformer_b2_clothes",
       );
       console.log("✅ Segmenter model loaded");
 
@@ -121,7 +121,7 @@ function processResults(results, metadata, t) {
     detectionArray.slice(0, 5).forEach((det, i) => {
       if (det && det.label && det.score) {
         console.log(
-          `  ${i + 1}. ${det.label}: ${(det.score * 100).toFixed(1)}%`
+          `  ${i + 1}. ${det.label}: ${(det.score * 100).toFixed(1)}%`,
         );
       }
     });
@@ -131,7 +131,7 @@ function processResults(results, metadata, t) {
 
   // Get highest confidence detection
   const bestDetection = personDetections.reduce((best, current) =>
-    current.score > best.score ? current : best
+    current.score > best.score ? current : best,
   );
 
   console.log("🏆 Best person detection:", {
@@ -174,157 +174,6 @@ function processResults(results, metadata, t) {
   };
 }
 
-// NEW: Simple but effective background removal using segmentation
-const removeBackgroundSimple = async (croppedBuffer) => {
-  try {
-    console.log("🎭 Starting simple background removal...");
-
-    const segmenter = await getSegmenter();
-
-    // Save cropped buffer to temp file for segmentation
-    const tempDir = path.join(process.cwd(), "temp-bg-removal");
-    await fs.mkdir(tempDir, { recursive: true });
-    const tempPath = path.join(tempDir, `seg-${Date.now()}.png`);
-
-    await sharp(croppedBuffer).png().toFile(tempPath);
-
-    // Run segmentation
-    const results = await segmenter(tempPath);
-
-    // Clean up temp file
-    await fs.unlink(tempPath).catch(() => { });
-
-    if (!results || results.length === 0) {
-      console.log("⚠️ No segmentation results, returning original");
-      return croppedBuffer;
-    }
-
-    // Get image dimensions
-    const metadata = await sharp(croppedBuffer).metadata();
-
-    // Combine masks for person-related labels
-    const personLabels = [
-      "person",
-      "human",
-      "skin",
-      "hair",
-      "face",
-      "upper-clothes",
-      "lower-clothes",
-      "dress",
-      "coat",
-      "socks",
-      "pants",
-      "torso",
-      "scarf",
-      "skirt",
-      "neck",
-    ];
-
-    // Create a blank mask
-    const maskWidth = metadata.width;
-    const maskHeight = metadata.height;
-    const maskData = new Uint8Array(maskWidth * maskHeight).fill(0);
-
-    // Process each segmentation result
-    for (const result of results) {
-      if (!result.mask) continue;
-
-      const label = result.label.toLowerCase();
-      const isPersonRelated = personLabels.some((l) => label.includes(l));
-
-      if (isPersonRelated) {
-        const mask = result.mask;
-
-        // Rescale mask to match original dimensions if needed
-        let scaledMaskData;
-        if (mask.width !== maskWidth || mask.height !== maskHeight) {
-          const tempMaskBuffer = await sharp(Buffer.from(mask.data), {
-            raw: { width: mask.width, height: mask.height, channels: 1 },
-          })
-            .resize(maskWidth, maskHeight, { fit: "fill" })
-            .raw()
-            .toBuffer();
-
-          scaledMaskData = new Uint8Array(tempMaskBuffer);
-        } else {
-          scaledMaskData = new Uint8Array(mask.data);
-        }
-
-        // Combine with existing mask (OR operation)
-        for (let i = 0; i < maskData.length; i++) {
-          if (i < scaledMaskData.length && scaledMaskData[i] > 128) {
-            maskData[i] = 255;
-          }
-        }
-      }
-    }
-
-    // If no person-related masks found, use the first mask
-    if (maskData.every((v) => v === 0) && results[0].mask) {
-      console.log("⚠️ No person masks found, using first mask");
-      const mask = results[0].mask;
-      const maskBuffer = Buffer.from(mask.data);
-
-      if (mask.width !== maskWidth || mask.height !== maskHeight) {
-        const resizedMask = await sharp(maskBuffer, {
-          raw: { width: mask.width, height: mask.height, channels: 1 },
-        })
-          .resize(maskWidth, maskHeight, { fit: "fill" })
-          .raw()
-          .toBuffer();
-
-        return await applyMask(
-          croppedBuffer,
-          Buffer.from(resizedMask),
-          maskWidth,
-          maskHeight
-        );
-      } else {
-        return await applyMask(
-          croppedBuffer,
-          maskBuffer,
-          maskWidth,
-          maskHeight
-        );
-      }
-    }
-
-    // Apply the combined mask
-    return await applyMask(
-      croppedBuffer,
-      Buffer.from(maskData),
-      maskWidth,
-      maskHeight
-    );
-  } catch (error) {
-    console.error("❌ Background removal error:", error.message);
-    console.log("⚠️ Returning original image due to error");
-    return croppedBuffer;
-  }
-};
-
-// Helper function to apply mask
-const applyMask = async (imageBuffer, maskBuffer, width, height) => {
-  // Convert mask to PNG
-  const maskPng = await sharp(maskBuffer, {
-    raw: { width, height, channels: 1 },
-  })
-    .blur(1) // Smooth edges slightly
-    .threshold(128)
-    .png()
-    .toBuffer();
-
-  // Apply mask to image
-  const result = await sharp(imageBuffer)
-    .composite([{ input: maskPng, blend: "dest-in" }])
-    .png()
-    .toBuffer();
-
-  console.log("✅ Background removal successful");
-  return result;
-};
-
 // Main service function
 const detectAndCrop = async (file, options, req, t) => {
   const {
@@ -350,14 +199,14 @@ const detectAndCrop = async (file, options, req, t) => {
   const verticalPadding = Math.round(pixelBox.height * 0.15);
 
   let left = Math.max(0, pixelBox.x - horizontalPadding);
-  let top = Math.max(0, pixelBox.y - verticalPadding);
+  let top = Math.max(0, pixelBox.y - verticalPadding - 20);
   let right = Math.min(
     imgWidth,
-    pixelBox.x + pixelBox.width + horizontalPadding
+    pixelBox.x + pixelBox.width + horizontalPadding,
   );
   let bottom = Math.min(
     imgHeight,
-    pixelBox.y + pixelBox.height + verticalPadding
+    pixelBox.y + pixelBox.height + verticalPadding,
   );
 
   const cropBox = {
@@ -366,7 +215,7 @@ const detectAndCrop = async (file, options, req, t) => {
     width: right - left,
     height: bottom - top,
   };
-
+  console.log({ ...cropBox, imgHeight, imgWidth });
   if (cropBox.width <= 0 || cropBox.height <= 0) {
     throw new Error("extract_area: bad extract area");
   }
@@ -385,26 +234,25 @@ const detectAndCrop = async (file, options, req, t) => {
 
   // 6. Remove background if enabled
 
-
   // In detectAndCrop function, replace the background removal section:
   if (removeBackground) {
     console.log("🎭 Removing background...");
     try {
-      croppedBuffer = await backgroundRemovalService.removeBackgroundFromBuffer(
-        croppedBuffer
-      );
+      croppedBuffer =
+        await backgroundRemovalService.removeBackgroundFromBuffer(
+          croppedBuffer,
+        );
       console.log("✅ Background removal successful");
     } catch (bgError) {
       console.error("❌ Background removal failed:", bgError.message);
       console.log("🔄 Trying simple background removal...");
       try {
-        croppedBuffer = await backgroundRemovalService.simpleBackgroundRemoval(
-          croppedBuffer
-        );
+        croppedBuffer =
+          await backgroundRemovalService.simpleBackgroundRemoval(croppedBuffer);
         console.log("✅ Simple background removal successful");
       } catch (simpleError) {
         console.error(
-          "❌ All background removal methods failed, keeping original"
+          "❌ All background removal methods failed, keeping original",
         );
         // Keep the cropped image without background removal
       }
@@ -415,7 +263,7 @@ const detectAndCrop = async (file, options, req, t) => {
   let imageProcessor = sharp(croppedBuffer).resize(
     parseInt(outputWidth),
     parseInt(outputHeight),
-    { fit: "cover" }
+    { fit: "cover" },
   );
 
   switch (format.toLowerCase()) {
@@ -514,7 +362,7 @@ const processBase64 = async (body, req, t) => {
 
   // Parse base64
   const matches = base64Image.match(
-    /^data:image\/([A-Za-z-+\/]+);base64,(.+)$/
+    /^data:image\/([A-Za-z-+\/]+);base64,(.+)$/,
   );
   if (!matches || matches.length !== 3) {
     throw new Error(t("detection.invalid_base64"));

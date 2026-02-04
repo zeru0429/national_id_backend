@@ -30,6 +30,20 @@ router.post(
 
 router.get("/health", detectionController.healthCheck);
 
+// QR code detection + generate
+router.post(
+  "/detect-qr",
+  uploadImage.single("image"),
+  detectionController.detectQRController,
+);
+
+// Barcode detection only
+router.post(
+  "/detect-barcode",
+  uploadImage.single("image"),
+  detectionController.detectBarcodeController,
+);
+
 // -------------------------
 // PROTECTED ROUTES
 // -------------------------

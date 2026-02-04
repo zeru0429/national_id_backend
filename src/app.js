@@ -220,6 +220,12 @@ app.post(
   },
 );
 
+// Error Handling
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+module.exports = app;
+
 // // Grrok Main OCR endpoint
 // app.post(
 //   "/api/v1/extract",
@@ -316,12 +322,6 @@ app.post(
 //     }
 //   },
 // );
-
-// Error Handling
-app.use(notFoundHandler);
-app.use(errorHandler);
-
-module.exports = app;
 
 // // Main OCR extraction endpoint with OBS upload
 // app.post(

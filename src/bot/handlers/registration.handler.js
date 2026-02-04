@@ -80,7 +80,7 @@ async function handleRegistrationMessage(bot, msg) {
 
         await bot.sendMessage(
           chatId,
-          `🎉 *Registration Complete!*\n\nWelcome *${data.fullName}* to ID Generation Bot!\n\n💰 *Free Trial:*\nYou have *${FREE_TRIAL_COUNT} free ID generations* to get started!\n\nNext steps:\n1. Upload PDF to generate ID\n2. Manage your generated IDs`,
+          `🎉 *Registration Complete!*\n\nWelcome *${data.fullName}* to ID Generation Bot!\n\n💰 *Free Trial:*\nYou have *${FREE_TRIAL_COUNT} free ID generations* to get started!\n\nNext steps:\n1. Upload PDF to Generate ID From PDF\n2. Manage your generated IDs`,
           { parse_mode: "Markdown" }
         );
         await sendMainMenu(bot, chatId);

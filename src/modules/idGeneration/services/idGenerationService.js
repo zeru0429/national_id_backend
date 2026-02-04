@@ -48,7 +48,7 @@ const generateID = async (userId, data) => {
   return generation;
 };
 
-// Regenerate ID
+// ReGenerate ID From PDF
 const regenerateID = async (userId, generationId) => {
   const generation = await prisma.iDGeneration.findUnique({
     where: { id: generationId },

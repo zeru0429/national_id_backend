@@ -55,7 +55,7 @@ async function startIDGeneration(bot, chatId, userId) {
 
   await bot.sendMessage(
     chatId,
-    `✅ *Ready to Generate ID*\n\n📊 *Cost:* ${ID_GENERATION_COST} Credit\n💰 *Your Balance:* ${balanceCheck.balance} Credit\n\nPlease upload a PDF of the ID document:`,
+    `✅ *Ready to Generate ID From PDF*\n\n📊 *Cost:* ${ID_GENERATION_COST} Credit\n💰 *Your Balance:* ${balanceCheck.balance} Credit\n\nPlease upload a PDF of the ID document:`,
     {
       parse_mode: "Markdown",
       ...keyboards.getCancelKeyboard(),
@@ -275,7 +275,7 @@ async function handleIDMessage(bot, msg) {
       });
 
       if (!frontPath || !backPath)
-        throw new Error("Failed to generate ID card images");
+        throw new Error("Failed to Generate ID From PDF card images");
     } catch (genError) {
       await fsPromises.unlink(tempPath).catch(console.error);
       await bot.editMessageText(
@@ -419,7 +419,7 @@ async function handleViewPast(bot, chatId, userId, page = 1, limit = 10) {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
-            [{ text: "🆔 Generate ID", callback_data: "generate_id" }],
+            [{ text: "🆔 Generate ID From PDF", callback_data: "generate_id" }],
             [{ text: "🏠 Main Menu", callback_data: "main_menu" }],
           ],
         },
