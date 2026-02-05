@@ -36,6 +36,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@ericblade/quagga2": "^1.12.1",
     "@faker-js/faker": "^10.1.0",
     "@google/generative-ai": "^0.24.1",
     "@huggingface/inference": "^4.13.4",

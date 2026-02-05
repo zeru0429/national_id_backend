@@ -3,12 +3,22 @@
  */
 
 const stateManager = require("../utils/stateManager");
-const { handleRegistrationMessage } = require("../handlers/registration.handler");
-const { handleIDMessage, searchID } = require("../handlers/idGeneration.handler");
+const {
+  handleRegistrationMessage,
+} = require("../handlers/registration.handler");
+const {
+  handleIDMessage,
+  searchID,
+} = require("../handlers/idGeneration.handler");
+const {
+  handleScreenshotMessage,
+} = require("../handlers/idGenerationWithScreenShot.handler");
+
 const adminHandler = require("../handlers/admin.handler");
 const keyboards = require("../ui/keyboards");
 const messages = require("../ui/messages");
 const usersService = require("../../modules/users/services/usersService");
+
 
 async function handleMessage(bot, msg) {
   const chatId = msg.chat.id;
@@ -23,7 +33,7 @@ async function handleMessage(bot, msg) {
     return bot.sendMessage(
       chatId,
       "⏳ Your previous request is still being processed. Please wait until it's finished.",
-      { parse_mode: "Markdown", ...keyboards.getBackKeyboard("main_menu") }
+      { parse_mode: "Markdown", ...keyboards.getBackKeyboard("main_menu") },
     );
   }
 
@@ -42,7 +52,7 @@ async function handleMessage(bot, msg) {
       return bot.sendMessage(
         chatId,
         messages.profileNotFound,
-        keyboards.getBackKeyboard("main_menu")
+        keyboards.getBackKeyboard("main_menu"),
       );
     }
 
@@ -71,7 +81,12 @@ async function handleMessage(bot, msg) {
   }
 
   if (userState.step === "ADMIN_ADD_BALANCE") {
-    await adminHandler.handleAdminAddBalance(bot, chatId, userState.data.userId, text);
+    await adminHandler.handleAdminAddBalance(
+      bot,
+      chatId,
+      userState.data.userId,
+      text,
+    );
     stateManager.remove(chatId);
     return;
   }
@@ -93,16 +108,45 @@ async function handleMessage(bot, msg) {
     return; // stop further handling
   }
 
+  // // ----------------------------
+  // // ID generation flows
+  // // ----------------------------
+  // if (userState.step?.startsWith("ID_")) {
+  //   stateManager.lock(chatId, "ID Generation");
+  //   try {
+  //     await handleIDMessage(bot, msg);
+  //   } finally {
+  //     stateManager.unlock(chatId); // always unlock, even on error
+  //   }
+  //   return;
+  // }
   // ----------------------------
-  // ID generation flows
+  // Screenshot ID flow
+  // ----------------------------
+  if (userState.step?.startsWith("ID_SCREENSHOT")) {
+    stateManager.lock(chatId, "Screenshot ID");
+
+    try {
+      await handleScreenshotMessage(bot, msg);
+    } finally {
+      stateManager.unlock(chatId);
+    }
+
+    return;
+  }
+
+  // ----------------------------
+  // Normal ID generation flow
   // ----------------------------
   if (userState.step?.startsWith("ID_")) {
     stateManager.lock(chatId, "ID Generation");
+
     try {
       await handleIDMessage(bot, msg);
     } finally {
-      stateManager.unlock(chatId); // always unlock, even on error
+      stateManager.unlock(chatId);
     }
+
     return;
   }
 
@@ -114,7 +158,7 @@ async function handleMessage(bot, msg) {
       return bot.sendMessage(
         chatId,
         "❌ Search query must be at least 2 characters.\n\nPlease enter FCN, FIN, or name:",
-        keyboards.getCancelKeyboard()
+        keyboards.getCancelKeyboard(),
       );
     }
 
@@ -134,7 +178,7 @@ async function handleMessage(bot, msg) {
   return bot.sendMessage(
     chatId,
     messages.errors.sessionExpired,
-    keyboards.getBackKeyboard("main_menu")
+    keyboards.getBackKeyboard("main_menu"),
   );
 }
 

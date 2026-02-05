@@ -14,6 +14,12 @@ async function getMainKeyboard(chatId) {
   const isAdmin = user.role === "ADMIN";
 
   const keyboard = [
+    [
+      {
+        text: "📸 Generate ID From Screenshot",
+        callback_data: "generate_id_screenshot",
+      },
+    ],
     [{ text: "🆔 Generate ID From PDF", callback_data: "generate_id" }],
     [{ text: "📂 View Past IDs", callback_data: "vp_1" }],
     [{ text: "🔍 Search IDs", callback_data: "search_id" }],
@@ -32,7 +38,14 @@ function getFallbackKeyboard() {
   return {
     reply_markup: {
       inline_keyboard: [
+        [
+          {
+            text: "📸 Generate ID From Screenshot",
+            callback_data: "generate_id_screenshot",
+          },
+        ],
         [{ text: "🆔 Generate ID From PDF", callback_data: "generate_id" }],
+
         [{ text: "📂 View Past IDs", callback_data: "vp_1" }],
         [{ text: "🔍 Search IDs", callback_data: "search_id" }],
         [{ text: "👤 My Profile", callback_data: "profile" }],
