@@ -1,5 +1,6 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const fs = require("fs");
+const MAX_RETRIES = 3;
 
 // Load keys from environment variable
 const keys = process.env.GOOGLE_API_KEY
@@ -23,51 +24,78 @@ const getNextApiKey = () => {
 };
 
 const extractIdContent = async (files, prompt) => {
-    try {
-        const apiKey = getNextApiKey(); // Pick the next key
-        const genAI = new GoogleGenerativeAI(apiKey); // Instantiate with this key
+    let lastError = null;
 
-        const model = genAI.getGenerativeModel({
-            model: "gemini-flash-latest",
-            generationConfig: { responseMimeType: "application/json" },
-        });
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const apiKey = getNextApiKey();
+        console.log(
+            `🔁 Gemini attempt ${attempt}/${MAX_RETRIES} using key:`,
+            apiKey,
+        );
 
-        const imageParts = files.map((file) => {
-            let base64Data;
+        try {
+            const genAI = new GoogleGenerativeAI(apiKey);
 
-            if (file.buffer) {
-                base64Data = file.buffer.toString("base64");
-            } else if (file.path) {
-                base64Data = fs.readFileSync(file.path).toString("base64");
-            } else {
-                throw new Error("Invalid image input");
-            }
+            const model = genAI.getGenerativeModel({
+                model: "gemini-flash-latest",
+                generationConfig: { responseMimeType: "application/json" },
+            });
+
+            const imageParts = files.map((file) => {
+                let base64Data;
+
+                if (file.buffer) {
+                    base64Data = file.buffer.toString("base64");
+                } else if (file.path) {
+                    base64Data = fs.readFileSync(file.path).toString("base64");
+                } else {
+                    throw new Error("Invalid image input");
+                }
+
+                return {
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: file.mimeType || "image/png",
+                    },
+                };
+            });
+
+            const result = await model.generateContent([prompt, ...imageParts]);
+            const response = await result.response;
+            const text = response.text();
 
             return {
-                inlineData: {
-                    data: base64Data,
-                    mimeType: file.mimeType || "image/png",
+                success: true,
+                data: JSON.parse(text),
+                metadata: {
+                    model: "gemini-1.5-flash",
+                    apiKeyUsed: apiKey,
+                    attempt,
+                    usage: response.usageMetadata,
                 },
             };
-        });
+        } catch (error) {
+            console.error(
+                `❌ Gemini attempt ${attempt} failed with key ${apiKey}:`,
+                error.message,
+            );
 
-        const result = await model.generateContent([prompt, ...imageParts]);
-        const response = await result.response;
-        const text = response.text();
+            lastError = error;
 
-        return {
-            success: true,
-            data: JSON.parse(text),
-            metadata: {
-                model: "gemini-1.5-flash",
-                apiKeyUsed: apiKey,
-                usage: response.usageMetadata,
-            },
-        };
-    } catch (error) {
-        console.error("Gemini Extraction Error:", error);
-        return { success: false, error: error.message };
+            // If not retryable, fail immediately
+            if (!isRetryableError(error)) {
+                break;
+            }
+
+            // Small backoff before retrying
+            await new Promise((r) => setTimeout(r, 500 * attempt));
+        }
     }
+
+    return {
+        success: false,
+        error: lastError?.message || "Gemini extraction failed after retries",
+    };
 };
 
 module.exports = { extractIdContent };
