@@ -85,8 +85,8 @@ const scanBarcode = async (filePath) => {
  */
 
 const generateBarcode = async (text, options = {}) => {
-    const targetRatio = 322 / 83; // width / height ratio
-    const height = options.height || 53; // vertical height of the barcode area
+    const targetRatio = 240 / 83; // width / height ratio
+    const height = options.height || 30; // vertical height of the barcode area
     const width = Math.round(height * targetRatio); // auto-calculate width
     const textSize = options.textsize || 12; // font size for the text
 

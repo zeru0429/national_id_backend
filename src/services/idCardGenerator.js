@@ -38,6 +38,7 @@ const PLACEMENTS = {
     photo: { x: 100, y: 270, width: 570, height: 750 },
     samll_photo: { x: 1410, y: 785, width: 215, height: 235 },
     barcode: { x: 750, y: 864, width: 590, height: 155 },
+    barcode2: { x: 805, y: 870, width: 470, height: 145 },
   },
   back: { qrCode: { x: 800, y: 48, width: 900, height: 914 } },
 };
@@ -214,9 +215,6 @@ function drawText(ctx, text, x, y, maxWidth, fontSize, font, fontWeight) {
  *   jpegQuality: 0..1 (only for jpg)
  */
 
-
-
-
 async function generateIDCard({
   side = "front",
   data = {},
@@ -227,6 +225,7 @@ async function generateIDCard({
   outputFormat = "jpg",
   jpegQuality = 0.95,
   customFileName, // optional: if provided, ignore auto-naming
+  isBarcode2 = false,
 }) {
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
@@ -238,9 +237,6 @@ async function generateIDCard({
     `${side}-${sanitizeFileName(data.fin)}-${sanitizeFileName(
       data.name_am,
     )}-${sanitizeFileName(data.name_en)}.${outputFormat}`;
-
-  const outputPath = path.join(outputDir, fileName);
-
   // --- rest of your existing generateIDCard code ---
   const templatePath = side === "front" ? FRONT_TEMPLATE : BACK_TEMPLATE;
   const template = await loadLocalImage(templatePath);
@@ -274,7 +270,11 @@ async function generateIDCard({
   if (side === "front") {
     if (photoPath) await drawIfExists(photoPath, PLACEMENTS.front.photo);
     if (photoPath) await drawIfExists(photoPath, PLACEMENTS.front.samll_photo);
-    if (barcodePath) await drawIfExists(barcodePath, PLACEMENTS.front.barcode);
+    if (barcodePath)
+      await drawIfExists(
+        barcodePath,
+        isBarcode2 ? PLACEMENTS.front.barcode2 : PLACEMENTS.front.barcode,
+      );
   } else {
     if (qrCodePath) await drawIfExists(qrCodePath, PLACEMENTS.back.qrCode);
   }
@@ -342,7 +342,7 @@ async function generateIDCard({
   // Upload to OBS
   const obsResult = await obsService.uploadFile({
     buffer,
-    folder: `user-${data.fin}`,        // organize by user FIN or any user id
+    folder: `user-${data.fin}`, // organize by user FIN or any user id
     objectKey: fileName,
     contentType: outputFormat === "png" ? "image/png" : "image/jpeg",
     acl: obsService.ACL_TYPES.PUBLIC_READ,
@@ -350,23 +350,6 @@ async function generateIDCard({
 
   console.log(`✅ ID card uploaded to OBS: ${obsResult.url}`);
   return obsResult.url;
-
-
-  // // Export
-  // let buffer;
-  // if (outputFormat === "jpg" || outputFormat === "jpeg") {
-  //   buffer = canvas.toBuffer("image/jpeg", {
-  //     quality: jpegQuality,
-  //     progressive: true,
-  //   });
-  // } else {
-  //   buffer = canvas.toBuffer("image/png");
-  // }
-
-  // fs.writeFileSync(outputPath, buffer);
-  // console.log(`✅ ID card saved: ${outputPath} (${outputFormat})`);
-
-  // return outputPath;
 }
 
 module.exports = { generateIDCard };

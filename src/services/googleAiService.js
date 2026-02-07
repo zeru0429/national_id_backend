@@ -40,13 +40,13 @@ const extractIdContent = async (files, prompt) => {
             } else if (file.path) {
                 base64Data = fs.readFileSync(file.path).toString("base64");
             } else {
-                throw new Error(`File content not found for ${file.originalname}`);
+                throw new Error("Invalid image input");
             }
 
             return {
                 inlineData: {
                     data: base64Data,
-                    mimeType: file.mimetype,
+                    mimeType: file.mimeType || "image/png",
                 },
             };
         });

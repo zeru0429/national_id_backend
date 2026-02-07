@@ -1,0 +1,359 @@
+/**
+ * idGenerationWithScreenShot.handler.js
+ * Handles ID generation from front/back screenshots
+ */
+
+const fs = require("fs");
+const fsPromises = fs.promises;
+const path = require("path");
+const axios = require("axios");
+const { saveTempImage } = require("../ui/saveImage");
+const { generateIDCard } = require("../../services/idCardGenerator");
+const idGenerationService = require("../../modules/idGeneration/services/idGenerationService");
+const subscriptionService = require("../../modules/subscription/services/subscriptionService");
+const stateManager = require("../utils/stateManager");
+const keyboards = require("../ui/keyboards");
+const { ID_GENERATION_COST } = require("../config/constants");
+const idGenService = require("../services/idGeneration.service");
+const {
+  scanQRCode,
+  generateQRCode,
+  generateBarcode,
+} = require("../../services/qrcodeService");
+const { extractIdContent } = require("../../services/googleAiService");
+const detectionService = require("../../modules/detection/services/detectionService");
+const { downloadOBSFileAsBuffer } = require("../../services/obsService");
+const { extractCardNumberFromBuffer } = require("../../utils/ocrUtils");
+
+/**
+ * Start screenshot-based ID generation
+ */
+async function startScreenshotIDGeneration(bot, chatId, userId) {
+  if (stateManager.isLocked(chatId)) {
+    return bot.sendMessage(
+      chatId,
+      "⏳ Please wait for your current operation to complete.",
+      keyboards.getBackKeyboard("main_menu"),
+    );
+  }
+
+  const balanceCheck = await idGenService.checkBalance(userId);
+  if (!balanceCheck.ok) {
+    return bot.sendMessage(
+      chatId,
+      `❌ *Insufficient Balance!*\n💰 Required: ${ID_GENERATION_COST} Credit\n💰 Available: ${balanceCheck.balance} Credit`,
+      { parse_mode: "Markdown", ...keyboards.getBalanceKeyboard() },
+    );
+  }
+
+  stateManager.set(chatId, {
+    step: "ID_SCREENSHOT_FRONT",
+    data: { userId },
+    action: "generate_id_screenshot",
+  });
+
+  await bot.sendMessage(
+    chatId,
+    `✅ *Ready to Generate ID from Screenshot*\n📊 *Cost:* ${ID_GENERATION_COST} Credit\n💰 *Balance:* ${balanceCheck.balance} Credit\n\nPlease upload the *FRONT screenshot* of the ID as a file (PNG/JPG).`,
+    { parse_mode: "Markdown", ...keyboards.getCancelKeyboard() },
+  );
+}
+
+/**
+ * Handle uploaded screenshots
+ */
+async function handleScreenshotMessage(bot, msg) {
+  const chatId = msg.chat.id;
+  const userState = stateManager.get(chatId);
+
+  if (!userState || !userState.step?.startsWith("ID_SCREENSHOT")) return;
+
+  const { userId } = userState.data || {};
+
+  if (!msg.document) {
+    return bot.sendMessage(chatId, "❌ Upload as *FILE*, not photo.", {
+      parse_mode: "Markdown",
+      ...keyboards.getCancelKeyboard(),
+    });
+  }
+
+  const processingMsg = await bot.sendMessage(
+    chatId,
+    "⏳ Processing screenshot...",
+    { parse_mode: "Markdown" },
+  );
+
+  let tempPath;
+  try {
+    // Download uploaded file
+    const fileLink = await bot.getFileLink(msg.document.file_id);
+    const res = await axios.get(fileLink, { responseType: "arraybuffer" });
+    const buffer = Buffer.from(res.data);
+
+    // Save temp file for detection
+    tempPath = await saveTempImage(buffer);
+    console.log("DEBUG: Temp file saved at", tempPath);
+
+    // --- STEP 1: FRONT SCREENSHOT ---
+    if (userState.step === "ID_SCREENSHOT_FRONT") {
+      console.log("DEBUG: Processing FRONT screenshot for detection");
+
+      let detectResult;
+      try {
+        detectResult = await detectionService.detectAndCrop(
+          { path: tempPath },
+          { outputWidth: 512, outputHeight: 512, removeBackground: false },
+        );
+        console.log("DEBUG: Detection result", detectResult);
+      } catch (dErr) {
+        console.error("DEBUG: detectAndCrop failed", dErr);
+      }
+
+      // Use cropped image buffer if available
+      let profileBuffer = buffer;
+      let ocrBuffer = buffer;
+      if (detectResult && detectResult.processedImage?.url) {
+        // Corrected path: resolve relative to project public folder
+        // Use project root public folder so we read exactly where detection saved files
+        const publicFolder = path.join(process.cwd(), "public");
+        const croppedPath = path.join(
+          publicFolder,
+          detectResult.processedImage.url.replace(/^\//, ""),
+        );
+
+        console.log("DEBUG: Cropped path resolved to", croppedPath);
+
+        if (fs.existsSync(croppedPath)) {
+          profileBuffer = fs.readFileSync(croppedPath);
+          ocrBuffer = profileBuffer;
+          console.log("DEBUG: Using cropped image for OCR:", croppedPath);
+        } else {
+          console.warn("WARNING: Cropped file not found at", croppedPath);
+        }
+      }
+
+      // Extract card number from buffer
+      const { cardNumber, rawOcrText } =
+        await extractCardNumberFromBuffer(ocrBuffer);
+      console.log("DEBUG: OCR result - cardNumber:", cardNumber);
+
+      if (!cardNumber) {
+        return bot.editMessageText(
+          "❌ Card number not detected. Upload a clearer *front screenshot*.",
+          {
+            chat_id: chatId,
+            message_id: processingMsg.message_id,
+            parse_mode: "Markdown",
+            ...keyboards.getCancelKeyboard(),
+          },
+        );
+      }
+
+      const barcodeBuffer = await generateBarcode(cardNumber);
+
+      const frontFileObj = {
+        buffer: profileBuffer,
+        mimetype: msg.document.mime_type || "image/png",
+        originalname: msg.document.file_name || "front.png",
+      };
+
+      stateManager.set(chatId, {
+        step: "ID_SCREENSHOT_BACK",
+        data: {
+          userId,
+          frontFile: frontFileObj,
+          barcodeBuffer,
+          rawOcrText,
+        },
+        action: "generate_id_screenshot",
+      });
+
+      return bot.editMessageText(
+        `✅ Front verified!\n🆔 Card Number: \`${cardNumber}\`\n\n📥 Upload *BACK screenshot* (file format).`,
+        {
+          chat_id: chatId,
+          message_id: processingMsg.message_id,
+          parse_mode: "Markdown",
+          ...keyboards.getCancelKeyboard(),
+        },
+      );
+    }
+
+    // --- STEP 2: BACK SCREENSHOT ---
+    if (userState.step === "ID_SCREENSHOT_BACK") {
+      const qrData = await scanQRCode(tempPath);
+      if (!qrData) {
+        return bot.editMessageText(
+          "❌ QR not detected. Upload a clearer *back screenshot*.",
+          {
+            chat_id: chatId,
+            message_id: processingMsg.message_id,
+            parse_mode: "Markdown",
+            ...keyboards.getCancelKeyboard(),
+          },
+        );
+      }
+
+      const qrBuffer = await generateQRCode(qrData);
+
+      const backFileObj = {
+        buffer,
+        mimetype: msg.document.mime_type || "image/png",
+        originalname: msg.document.file_name || "back.png",
+      };
+
+      // --- STEP 3: AI extraction ---
+      const prompt = `
+Analyze the front and back screenshots of this Ethiopian Digital ID.
+Return JSON with keys: name_am, name_en, date_of_birth_am, date_of_birth_en, sex_am, sex_en,
+issueDate_am, issueDate_en, expireDate_am, expireDate_en, nationality_am, nationality_en,
+phone_number, region_am, region_en, zone_am, zone_en, woreda_am, woreda_en, fcn, fin, sn.
+Use null if value not found.
+`;
+
+      const aiResult = await extractIdContent(
+        [userState.data.frontFile, backFileObj],
+        prompt,
+      );
+
+      if (!aiResult.success || !aiResult.data) {
+        return bot.editMessageText(
+          "❌ AI extraction failed. Try clearer screenshots.",
+          {
+            chat_id: chatId,
+            message_id: processingMsg.message_id,
+            parse_mode: "Markdown",
+            ...keyboards.getCancelKeyboard(),
+          },
+        );
+      }
+
+      stateManager.remove(chatId);
+
+      await bot.editMessageText(
+        "🎉 ID verified & extracted!\n🚀 Generating ID cards...",
+        {
+          chat_id: chatId,
+          message_id: processingMsg.message_id,
+          parse_mode: "Markdown",
+        },
+      );
+
+      // --- STEP 4: Generate ID cards ---
+      await generateIDFromScreenshot({
+        bot,
+        chatId,
+        userId,
+        extractedData: aiResult.data,
+        profileBuffer: userState.data.frontFile.buffer,
+        barcodeBuffer: userState.data.barcodeBuffer,
+        qrBuffer,
+      });
+    }
+  } catch (err) {
+    console.error("Screenshot pipeline error:", err);
+    await bot.editMessageText("❌ Processing failed. Try again.", {
+      chat_id: chatId,
+      message_id: processingMsg.message_id,
+      parse_mode: "Markdown",
+      ...keyboards.getBackKeyboard("main_menu"),
+    });
+    stateManager.remove(chatId);
+  } finally {
+    if (tempPath) await fsPromises.unlink(tempPath).catch(() => { });
+  }
+}
+
+/**
+ * Generate ID from screenshot data
+ */
+async function generateIDFromScreenshot({
+  bot,
+  chatId,
+  userId,
+  extractedData,
+  profileBuffer,
+  barcodeBuffer,
+  qrBuffer,
+}) {
+  extractedData.sn =
+    extractedData.fcn || extractedData.fin || Date.now().toString();
+  const timestamp = Date.now();
+  const safeName = extractedData.name_en?.replace(/\s+/g, "_") || "id";
+
+  try {
+    // Generate FRONT ID
+    const frontURL = await generateIDCard({
+      side: "front",
+      data: extractedData,
+      photoPath: profileBuffer,
+      barcodePath: barcodeBuffer,
+      qrCodePath: qrBuffer,
+      customFileName: `front-${timestamp}-${safeName}.jpg`,
+      outputFormat: "jpg",
+      jpegQuality: 0.9,
+    });
+
+    // Generate BACK ID
+    const backURL = await generateIDCard({
+      side: "back",
+      data: extractedData,
+      photoPath: profileBuffer,
+      barcodePath: barcodeBuffer,
+      qrCodePath: qrBuffer,
+      customFileName: `back-${timestamp}-${safeName}.jpg`,
+      outputFormat: "jpg",
+      jpegQuality: 0.9,
+    });
+
+    // Save to DB / OBS
+    await idGenerationService.createWithFiles(
+      userId,
+      extractedData,
+      ID_GENERATION_COST,
+      [
+        { role: "FRONT_ID", fileUrl: frontURL },
+        { role: "BACK_ID", fileUrl: backURL },
+      ],
+    );
+
+    // Send to Telegram
+    const frontBuf = await downloadOBSFileAsBuffer(frontURL);
+    const backBuf = await downloadOBSFileAsBuffer(backURL);
+
+    await bot.sendDocument(chatId, frontBuf, {
+      filename: `Front-ID-${extractedData.fin || extractedData.fcn}.jpg`,
+      caption: "🆔 Front ID",
+    });
+    await bot.sendDocument(chatId, backBuf, {
+      filename: `Back-ID-${extractedData.fin || extractedData.fcn}.jpg`,
+      caption: "🆔 Back ID",
+    });
+
+    // Update subscription
+    const updatedSub = await subscriptionService.getByUserId(userId);
+    await bot.sendMessage(
+      chatId,
+      `✅ *Done!*\n💰 Remaining Balance: ${updatedSub.balance} Credit`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🔄 Generate Another", callback_data: "generate_id" }],
+            [{ text: "📂 View All", callback_data: "vp_1" }],
+            [{ text: "🏠 Main Menu", callback_data: "main_menu" }],
+          ],
+        },
+      },
+    );
+  } catch (err) {
+    console.error("ID generation error:", err);
+    await bot.sendMessage(
+      chatId,
+      `❌ *ID Generation Failed!*`,
+      keyboards.getBackKeyboard("main_menu"),
+    );
+  }
+}
+
+module.exports = { startScreenshotIDGeneration, handleScreenshotMessage };

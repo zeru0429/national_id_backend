@@ -4,7 +4,7 @@ const detectionController = require("../controllers/detectionController");
 const validate = require("../../../middleware/validatorMiddleware");
 const detectionValidation = require("../validations/detectionValidation");
 const { uploadImage } = require("../../../middleware/uploadMiddleware");
-const authenticate = require("../../../middleware/authMiddleware");
+// const authenticate = require("../../../middleware/authMiddleware");
 
 // -------------------------
 // PUBLIC ROUTES
@@ -47,7 +47,7 @@ router.post(
 // -------------------------
 // PROTECTED ROUTES
 // -------------------------
-router.use(authenticate);
+// router.use(authenticate);
 
 // Add authenticated routes here if needed
 // Example: router.post("/premium-detect", detectionController.premiumDetect);
