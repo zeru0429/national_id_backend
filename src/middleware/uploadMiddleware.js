@@ -6,6 +6,7 @@ const { OUTPUT_DIR } = require("../config/paths");
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(OUTPUT_DIR, "images");
+    console.log("📁 Uploading images to:", uploadDir);
     const fs = require("fs");
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -22,6 +23,7 @@ const storage = multer.diskStorage({
 const uploadImage = multer({
   storage,
   fileFilter: (req, file, cb) => {
+    console.log("📁 Uploading file:", file.originalname);
     const allowedTypes = /jpeg|jpg|png|webp/;
     const extname = allowedTypes.test(
       path.extname(file.originalname).toLowerCase(),

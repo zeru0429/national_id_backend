@@ -13,7 +13,14 @@ const { prisma } = require("./config/db");
 const { StatusCodes } = require("http-status-codes");
 const ApiResponse = require("./utils/apiResponse");
 const { BASE_PUBLIC, OUTPUT_DIR } = require("./config/paths");
+const {
 
+  extractIDCardData,
+  processMultipleImages,
+  testDeepSeekConnection,
+} = require("./services/ocr-service");
+const { extractWithGrok } = require("./services/grokOCRService");
+const { extractIdContent } = require("./services/googleAiService");
 const app = express();
 // Trust proxy configuration
 app.set("trust proxy", 1);
@@ -21,6 +28,7 @@ app.set("trust proxy", 1);
 
 // Ensure directories exist
 const fs = require("fs");
+const { uploadImage } = require("./middleware/uploadMiddleware");
 [BASE_PUBLIC, OUTPUT_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
@@ -141,14 +149,77 @@ app.get("/test", (req, res) => {
     server_time: `${new Date().toLocaleString()} ⌛`,
   });
 });
-
+app.use("/api/v1/detection", routeIndex.detection.detectionRoutes);
 app.use("/api/v1/auth", routeIndex.auth.authRoutes);
 app.use("/api/v1/users", routeIndex.users.usersRoutes);
 app.use("/api/v1/subscription", routeIndex.subscription.subscriptionRoutes);
 app.use("/api/v1/id-generation", routeIndex.idGeneration.idGenerationRoutes);
 app.use("/api/v1/usage-log", routeIndex.usageLog.usageLogRoutes);
 app.use("/api/v1/files", routeIndex.storedFile.storedFileRoutes);
-app.use("/api/v1/detection", routeIndex.detection.detectionRoutes);
+
+
+app.post(
+  "/api/v1/extract",
+  uploadImage.fields([
+    { name: "front", maxCount: 1 },
+    { name: "back", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const startTime = Date.now();
+
+    try {
+      const frontFile = req.files.front?.[0];
+      const backFile = req.files.back?.[0];
+
+      if (!frontFile || !backFile) {
+        return res.status(400).json({
+          success: false,
+          error: "Both front and back images must be provided",
+        });
+      }
+
+      // We send a single detailed prompt for both images
+      const prompt = `
+        Analyze the front and back of this Ethiopian Digital ID.
+        Return a JSON object with these EXACT keys:
+        name_am, name_en, date_of_birth_am, date_of_birth_en, sex_am, sex_en, 
+        issueDate_am, issueDate_en, expireDate_am, expireDate_en,
+        nationality_am, nationality_en, phone_number, region_am, region_en, 
+        zone_am, zone_en, woreda_am, woreda_en, fcn, fin, sn.
+        If a value is not found, use null.
+      `;
+
+      // Pass both files in one array
+      const result = await extractIdContent([frontFile, backFile], prompt);
+
+      if (!result.success) {
+        return res.status(500).json({
+          success: false,
+          error: result.error || "Gemini extraction failed",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Processed ID images with Gemini 1.5 Flash",
+        timestamp: new Date().toISOString(),
+        data: result.data,
+        metadata: {
+          ...result.metadata,
+          processing_time_ms: Date.now() - startTime,
+        },
+      });
+    } catch (err) {
+      console.error("Endpoint error:", err);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error during extraction",
+        message: err.message,
+        processing_time_ms: Date.now() - startTime,
+      });
+    }
+  },
+);
 
 // Error Handling
 app.use(notFoundHandler);

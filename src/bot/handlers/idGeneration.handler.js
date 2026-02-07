@@ -27,11 +27,9 @@ async function startIDGeneration(bot, chatId, userId) {
     return bot.sendMessage(
       chatId,
       "⏳ Please wait for your current operation to complete.",
-      keyboards.getBackKeyboard("main_menu")
+      keyboards.getBackKeyboard("main_menu"),
     );
   }
-
-
 
   const balanceCheck = await idGenService.checkBalance(userId);
   if (!balanceCheck.ok) {
@@ -41,7 +39,7 @@ async function startIDGeneration(bot, chatId, userId) {
       {
         parse_mode: "Markdown",
         ...keyboards.getBalanceKeyboard(),
-      }
+      },
     );
     return;
   }
@@ -55,11 +53,11 @@ async function startIDGeneration(bot, chatId, userId) {
 
   await bot.sendMessage(
     chatId,
-    `✅ *Ready to Generate ID*\n\n📊 *Cost:* ${ID_GENERATION_COST} Credit\n💰 *Your Balance:* ${balanceCheck.balance} Credit\n\nPlease upload a PDF of the ID document:`,
+    `✅ *Ready to Generate ID From PDF*\n\n📊 *Cost:* ${ID_GENERATION_COST} Credit\n💰 *Your Balance:* ${balanceCheck.balance} Credit\n\nPlease upload a PDF of the ID document:`,
     {
       parse_mode: "Markdown",
       ...keyboards.getCancelKeyboard(),
-    }
+    },
   );
 
   stateManager.set(chatId, {
@@ -67,6 +65,11 @@ async function startIDGeneration(bot, chatId, userId) {
     data: { userId },
     action: "generate_id",
   });
+}
+
+function generateRandom7DigitNumber() {
+  const randomNumber = Math.floor(1000000 + Math.random() * 9000000);
+  return randomNumber.toString();
 }
 
 async function handleIDMessage(bot, msg) {
@@ -81,7 +84,7 @@ async function handleIDMessage(bot, msg) {
     await bot.sendMessage(
       chatId,
       "❌ Insufficient balance. Please add balance first.",
-      keyboards.getBalanceKeyboard()
+      keyboards.getBalanceKeyboard(),
     );
     stateManager.remove(chatId);
     return;
@@ -93,7 +96,7 @@ async function handleIDMessage(bot, msg) {
       await bot.sendMessage(
         chatId,
         "❌ *Invalid file format!*\n\nOnly PDF files are accepted for ID generation.\n\nPlease upload a valid PDF document.",
-        { parse_mode: "Markdown", ...keyboards.getCancelKeyboard() }
+        { parse_mode: "Markdown", ...keyboards.getCancelKeyboard() },
       );
       return;
     }
@@ -102,14 +105,14 @@ async function handleIDMessage(bot, msg) {
     await bot.sendMessage(
       chatId,
       "❌ *Images not accepted!*\n\nPlease upload a PDF document instead.",
-      { parse_mode: "Markdown", ...keyboards.getCancelKeyboard() }
+      { parse_mode: "Markdown", ...keyboards.getCancelKeyboard() },
     );
     return;
   } else {
     await bot.sendMessage(
       chatId,
       "⚠️ Please upload a PDF document file.",
-      keyboards.getCancelKeyboard()
+      keyboards.getCancelKeyboard(),
     );
     return;
   }
@@ -117,14 +120,14 @@ async function handleIDMessage(bot, msg) {
   const processingMsg = await bot.sendMessage(
     chatId,
     "⏳ *Processing...*\n\n📥 Downloading file\n🔍 Validating format\n📄 Checking document...\n\nThis may take a moment...",
-    { parse_mode: "Markdown" }
+    { parse_mode: "Markdown" },
   );
 
   let tempPath;
   try {
     const fileLink = await bot.getFileLink(fileId);
     [TEMP_DIR, OUTPUT_DIR, path.join(OUTPUT_DIR, "result")].forEach((dir) =>
-      fs.mkdirSync(dir, { recursive: true })
+      fs.mkdirSync(dir, { recursive: true }),
     );
 
     const originalName = msg.document?.file_name || "document.pdf";
@@ -137,7 +140,7 @@ async function handleIDMessage(bot, msg) {
           message_id: processingMsg.message_id,
           parse_mode: "Markdown",
           ...keyboards.getCancelKeyboard(),
-        }
+        },
       );
       return;
     }
@@ -150,7 +153,7 @@ async function handleIDMessage(bot, msg) {
         chat_id: chatId,
         message_id: processingMsg.message_id,
         parse_mode: "Markdown",
-      }
+      },
     );
 
     const writer = fs.createWriteStream(tempPath);
@@ -180,7 +183,7 @@ async function handleIDMessage(bot, msg) {
           message_id: processingMsg.message_id,
           parse_mode: "Markdown",
           ...keyboards.getCancelKeyboard(),
-        }
+        },
       );
       return;
     }
@@ -195,7 +198,7 @@ async function handleIDMessage(bot, msg) {
           message_id: processingMsg.message_id,
           parse_mode: "Markdown",
           ...keyboards.getCancelKeyboard(),
-        }
+        },
       );
       return;
     }
@@ -206,7 +209,7 @@ async function handleIDMessage(bot, msg) {
         chat_id: chatId,
         message_id: processingMsg.message_id,
         parse_mode: "Markdown",
-      }
+      },
     );
 
     let extractedData;
@@ -232,7 +235,7 @@ async function handleIDMessage(bot, msg) {
           message_id: processingMsg.message_id,
           parse_mode: "Markdown",
           ...keyboards.getCancelKeyboard(),
-        }
+        },
       );
       stateManager.remove(chatId);
       return;
@@ -244,17 +247,16 @@ async function handleIDMessage(bot, msg) {
         chat_id: chatId,
         message_id: processingMsg.message_id,
         parse_mode: "Markdown",
-      }
+      },
     );
 
     const timestamp = Date.now();
     const sanitizedName = extractedData.name_en?.replace(/\s+/g, "_") || "id";
-    extractedData.sn = extractedData.fcn || extractedData.fin || "00000000";
-
+    extractedData.sn = generateRandom7DigitNumber();
     let frontPath;
     let backPath;
     try {
-
+      console.log(extractedData);
       frontPath = await generateIDCard({
         side: "front",
         data: extractedData,
@@ -263,6 +265,7 @@ async function handleIDMessage(bot, msg) {
         customFileName: `front-${timestamp}-${sanitizedName}.jpg`,
         outputFormat: "jpg",
         jpegQuality: 0.9,
+        isBarcode2: false,
       });
 
       backPath = await generateIDCard({
@@ -275,7 +278,7 @@ async function handleIDMessage(bot, msg) {
       });
 
       if (!frontPath || !backPath)
-        throw new Error("Failed to generate ID card images");
+        throw new Error("Failed to Generate ID From PDF card images");
     } catch (genError) {
       await fsPromises.unlink(tempPath).catch(console.error);
       await bot.editMessageText(
@@ -285,7 +288,7 @@ async function handleIDMessage(bot, msg) {
           message_id: processingMsg.message_id,
           parse_mode: "Markdown",
           ...keyboards.getCancelKeyboard(),
-        }
+        },
       );
       stateManager.remove(chatId);
       return;
@@ -297,7 +300,7 @@ async function handleIDMessage(bot, msg) {
         chat_id: chatId,
         message_id: processingMsg.message_id,
         parse_mode: "Markdown",
-      }
+      },
     );
 
     try {
@@ -308,7 +311,7 @@ async function handleIDMessage(bot, msg) {
         [
           { role: "FRONT_ID", fileUrl: frontPath },
           { role: "BACK_ID", fileUrl: backPath },
-        ]
+        ],
       );
     } catch (dbError) {
       console.error("Database error:", dbError);
@@ -319,7 +322,7 @@ async function handleIDMessage(bot, msg) {
           message_id: processingMsg.message_id,
           parse_mode: "Markdown",
           ...keyboards.getBackKeyboard("main_menu"),
-        }
+        },
       );
       stateManager.remove(chatId);
       return;
@@ -330,34 +333,25 @@ async function handleIDMessage(bot, msg) {
     await bot.sendMessage(
       chatId,
       `🎉 *ID Generation Complete!*\n\n📋 *Extracted Details:*\n👤 Name: ${extractedData.name_en || "N/A"}\n🔢 FCN: ${extractedData.fcn || "N/A"}\n🔢 FIN: ${extractedData.fin || "N/A"}\n💰 Cost: ${ID_GENERATION_COST} Credit\n\nYour ID cards are ready:`,
-      { parse_mode: "Markdown" }
+      { parse_mode: "Markdown" },
     );
-
 
     const frontOBSUrl = frontPath;
     const backOBSUrl = backPath;
     const frontBuffer = await downloadOBSFileAsBuffer(frontOBSUrl);
     const backBuffer = await downloadOBSFileAsBuffer(backOBSUrl);
 
-    await bot.sendDocument(
-      chatId,
-      frontBuffer,
-      {
-        filename: `Front-ID-${extractedData.fin || extractedData.fcn || "ID"}.jpg`,
-        caption: `🆔 *Front ID*\n👤 ${extractedData.name_en || "ID"}\n🔢 FCN: ${extractedData.fcn || "N/A"}`,
-        parse_mode: "Markdown",
-      }
-    );
+    await bot.sendDocument(chatId, frontBuffer, {
+      filename: `Front-ID-${extractedData.fin || extractedData.fcn || "ID"}.jpg`,
+      caption: `🆔 *Front ID*\n👤 ${extractedData.name_en || "ID"}\n🔢 FCN: ${extractedData.fcn || "N/A"}`,
+      parse_mode: "Markdown",
+    });
 
-    await bot.sendDocument(
-      chatId,
-      backBuffer,
-      {
-        filename: `Back-ID-${extractedData.fin || extractedData.fcn || "ID"}.jpg`,
-        caption: `🆔 *Back ID*\n👤 ${extractedData.name_en || "ID"}\n🔢 FIN: ${extractedData.fin || "N/A"}`,
-        parse_mode: "Markdown",
-      }
-    );
+    await bot.sendDocument(chatId, backBuffer, {
+      filename: `Back-ID-${extractedData.fin || extractedData.fcn || "ID"}.jpg`,
+      caption: `🆔 *Back ID*\n👤 ${extractedData.name_en || "ID"}\n🔢 FIN: ${extractedData.fin || "N/A"}`,
+      parse_mode: "Markdown",
+    });
     const updatedSub = await subscriptionService.getByUserId(userId);
     await bot.sendMessage(
       chatId,
@@ -373,7 +367,7 @@ async function handleIDMessage(bot, msg) {
             [{ text: "🏠 Main Menu", callback_data: "main_menu" }],
           ],
         },
-      }
+      },
     );
 
     await fsPromises.unlink(tempPath).catch(console.error);
@@ -397,14 +391,13 @@ async function handleIDMessage(bot, msg) {
       await bot.sendMessage(
         chatId,
         "❌ Generation failed. Please try again.",
-        keyboards.getBackKeyboard("main_menu")
+        keyboards.getBackKeyboard("main_menu"),
       );
     }
   } finally {
     // ALWAYS CLEAN UP STATE
     stateManager.remove(chatId);
   }
-
 }
 
 async function handleViewPast(bot, chatId, userId, page = 1, limit = 10) {
@@ -419,11 +412,11 @@ async function handleViewPast(bot, chatId, userId, page = 1, limit = 10) {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
-            [{ text: "🆔 Generate ID", callback_data: "generate_id" }],
+            [{ text: "🆔 Generate ID From PDF", callback_data: "generate_id" }],
             [{ text: "🏠 Main Menu", callback_data: "main_menu" }],
           ],
         },
-      }
+      },
     );
     return;
   }
@@ -447,8 +440,14 @@ async function handleViewPast(bot, chatId, userId, page = 1, limit = 10) {
 
   const paginationRow = [];
   if (page > 1)
-    paginationRow.push({ text: "◀️ Previous", callback_data: `vp_${page - 1}` });
-  paginationRow.push({ text: `📄 ${page}/${totalPages}`, callback_data: "page_info" });
+    paginationRow.push({
+      text: "◀️ Previous",
+      callback_data: `vp_${page - 1}`,
+    });
+  paginationRow.push({
+    text: `📄 ${page}/${totalPages}`,
+    callback_data: "page_info",
+  });
   if (page < totalPages)
     paginationRow.push({ text: "Next ▶️", callback_data: `vp_${page + 1}` });
   if (paginationRow.length > 0) inlineKeyboard.push(paginationRow);
@@ -469,7 +468,7 @@ async function searchID(bot, chatId, queryText, userId) {
     await bot.sendMessage(
       chatId,
       `❌ Search query must be at least ${SEARCH_MIN_LENGTH} characters.`,
-      keyboards.getBackKeyboard("main_menu")
+      keyboards.getBackKeyboard("main_menu"),
     );
     return;
   }
@@ -477,7 +476,7 @@ async function searchID(bot, chatId, queryText, userId) {
   const searchingMsg = await bot.sendMessage(
     chatId,
     `🔍 *Searching...*\n\nLooking for IDs matching "*${queryText}*"`,
-    { parse_mode: "Markdown" }
+    { parse_mode: "Markdown" },
   );
 
   try {
@@ -497,7 +496,7 @@ async function searchID(bot, chatId, queryText, userId) {
               [{ text: "🏠 Main Menu", callback_data: "main_menu" }],
             ],
           },
-        }
+        },
       );
       return;
     }
@@ -530,20 +529,17 @@ async function searchID(bot, chatId, queryText, userId) {
   } catch (error) {
     console.error("Search error:", error);
     try {
-      await bot.editMessageText(
-        `❌ *Search Failed!*\n\n${error.message}`,
-        {
-          chat_id: chatId,
-          message_id: searchingMsg.message_id,
-          parse_mode: "Markdown",
-          ...keyboards.getBackKeyboard("main_menu"),
-        }
-      );
+      await bot.editMessageText(`❌ *Search Failed!*\n\n${error.message}`, {
+        chat_id: chatId,
+        message_id: searchingMsg.message_id,
+        parse_mode: "Markdown",
+        ...keyboards.getBackKeyboard("main_menu"),
+      });
     } catch {
       await bot.sendMessage(
         chatId,
         "❌ Search failed. Please try again.",
-        keyboards.getBackKeyboard("main_menu")
+        keyboards.getBackKeyboard("main_menu"),
       );
     }
   }

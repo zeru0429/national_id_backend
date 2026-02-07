@@ -26,10 +26,10 @@ const messages = {
 /help - Show this help message
 /profile - View your profile
 
-*How to Generate IDs:*
-1. Go to Main Menu → "🆔 Generate ID"
+*How to Generate ID From PDFs:*
+1. Go to Main Menu → "🆔 Generate ID From PDF"
 2. Upload a PDF or image of your document
-3. Bot will extract data and generate ID
+3. Bot will extract data and Generate ID From PDF
 4. Download your ID card images
 
 *Features:*
